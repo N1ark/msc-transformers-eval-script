@@ -1,3 +1,4 @@
 .gitattributes
 *.gil
 !**/runtime/*.gil
+*.log
