@@ -29,9 +29,9 @@ phase() {
         echo "$1 tests..."
 
         for i in $(ls -d "$dir/tests/$2"/*.gil); do
-            echo -n "- $i"
+            echo -n "- $(basename $i)"
             echo "Running $i" >> "$4"
-            dune exec -- $3 --runtime "$runtime" -a "$i" >> "$4" 2>&1
+            dune exec -- $3 --runtime "$runtime" -l disabled -a "$i" >> "$4" 2>&1
             echo " -- $?"
         done
     }
