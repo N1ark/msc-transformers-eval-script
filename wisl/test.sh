@@ -13,6 +13,7 @@ baseState() {
     echo "Setting up base state..."
     cd "$dir/../../Gillian"
     eval $(opam env)
+    dune build
 }
 
 transformerState() {
@@ -21,6 +22,7 @@ transformerState() {
     eval $(opam env)
     model="Mapper (WISLSubst) (PMap (LocationIndex) (Freeable (MList (Exclusive))))"
     sed -i '' "s/module MyMem = .*/module MyMem = $model/" bin/main.ml
+    dune build
 }
 
 transformerSpeState() {
@@ -29,7 +31,16 @@ transformerSpeState() {
     eval $(opam env)
     model="Mapper (WISLSubst) (WISLMap (Freeable (MList (Exclusive))))"
     sed -i '' "s/module MyMem = .*/module MyMem = $model/" bin/main.ml
+    dune build
+}
 
+transformerEntState() {
+    echo "Setting up transformer (entailment) state..."
+    cd "$dir/../../gillian-instantiation-template"
+    eval $(opam env)
+    model="Mapper (WISLSubst) (PMapEnt (LocationIndex) (Freeable (MList (Exclusive))))"
+    sed -i '' "s/module MyMem = .*/module MyMem = $model/" bin/main.ml
+    dune build
 }
 
 # $1: Name of the phase
@@ -49,7 +60,7 @@ phase() {
 
         echo -n "- $(basename $i)"
         echo "Running file $i" >> "$4"
-        dune exec -- $3 --runtime "$runtime" -l disabled -a "$i" >> "$4" 2>&1
+        dune exec --no-build -- $3 --runtime "$runtime" -l disabled -a "$i" >> "$4" 2>&1
         echo " -- $?"
     done
 }
@@ -84,10 +95,10 @@ fi
 if [ "$1" == "transformers" ] || [ "$1" == "all" ]; then
     transformerState
     test instantiation transformers
-    transformerSpeState
-    test instantiation transformersspe
+    transformerEntState
+    test instantiation transformersEnt
 fi
 
-${dir}/parse.py $dir $(ls -d $dir/*.log)
+${dir}/../parse.py $dir $(ls -d $dir/*.log)
 
 echo "Done."
