@@ -2,7 +2,12 @@
 
 dir=$( cd "$(dirname "${BASH_SOURCE[0]}")" ; pwd -P )
 runtime="$dir/tests/runtime"
-filefilter=$2
+iterations=$2
+filefilter=$3
+
+if [ -z "$iterations" ]; then
+    iterations=1
+fi
 
 baseState() {
     echo "Setting up base state..."
@@ -14,6 +19,17 @@ transformerState() {
     echo "Setting up transformer state..."
     cd "$dir/../../gillian-instantiation-template"
     eval $(opam env)
+    model="Mapper (WISLSubst) (PMap (LocationIndex) (Freeable (MList (Exclusive))))"
+    sed -i '' "s/module MyMem = .*/module MyMem = $model/" bin/main.ml
+}
+
+transformerSpeState() {
+    echo "Setting up transformer (specialised) state..."
+    cd "$dir/../../gillian-instantiation-template"
+    eval $(opam env)
+    model="Mapper (WISLSubst) (WISLMap (Freeable (MList (Exclusive))))"
+    sed -i '' "s/module MyMem = .*/module MyMem = $model/" bin/main.ml
+
 }
 
 # $1: Name of the phase
@@ -21,48 +37,57 @@ transformerState() {
 # $3: Command
 # $4: Log file
 phase() {
-    time {
-        printf "\n"
-        printf "$1 tests:\n\n" >> "$4"
-        echo "$1 tests..."
+    printf "\n\n"
+    echo "$1 tests..."
 
-        for i in $(ls -d "$dir/tests/$2"/*.gil); do
-            if [ ! -z "$filefilter" ] && [[ ! "$i" == *"$filefilter"* ]]; then
-                continue
-            fi
+    printf "\nMode $1:\n" >> "$4"
 
-            echo -n "- $(basename $i)"
-            echo "Running $i" >> "$4"
-            dune exec -- $3 --runtime "$runtime" -l disabled -a "$i" >> "$4" 2>&1
-            echo " -- $?"
-        done
-    }
+    for i in $(ls -d "$dir/tests/$2"/*.gil); do
+        if [ ! -z "$filefilter" ] && [[ ! "$i" == *"$filefilter"* ]]; then
+            continue
+        fi
+
+        echo -n "- $(basename $i)"
+        echo "Running file $i" >> "$4"
+        dune exec -- $3 --runtime "$runtime" -l disabled -a "$i" >> "$4" 2>&1
+        echo " -- $?"
+    done
 }
 
 # $1: Command
 # $2: Log file
 test() {
-    touch "$2"
-    > "$2"
-    echo "Running tests ($(date))" >> "$2"
+    logfile="$dir/$2.log"
+    touch "$logfile"
+    > "$logfile"
+    echo "Running tests ($(date))" >> "$logfile"
 
-    phase "Verification" verification "$1 verify" "$2"
-    phase "Bi-abduction" biabduction "$1 act" "$2"
-    phase "WPST" wpst "$1 wpst" "$2"
+    for i in $(seq 1 $iterations); do
+        printf "\n----- Iteration $i -----"
+        phase "Verification" verification "$1 verify" "$logfile"
+        phase "Biabduction" biabduction "$1 act" "$logfile"
+        phase "WPST" wpst "$1 wpst" "$logfile"
+    done
+
+    printf "\n\n"
 }
 
 if [ -z "$1" ]; then
-    echo "Usage: $0 (base|transformers|all) [test filter]"
+    echo "Usage: $0 (base|transformers|all) [iterations] [test filter]"
     exit 1
 fi
 
 if [ "$1" == "base" ] || [ "$1" == "all" ]; then
     baseState
-    test wisl "$dir/base.log"
+    test wisl base
 fi
 if [ "$1" == "transformers" ] || [ "$1" == "all" ]; then
     transformerState
-    test instantiation "$dir/transformers.log"
+    test instantiation transformers
+    transformerSpeState
+    test instantiation transformersspe
 fi
+
+${dir}/parse.py $dir $(ls -d $dir/*.log)
 
 echo "Done."

@@ -2,3 +2,4 @@
 *.gil
 !**/runtime/*.gil
 *.log
+*.csv
