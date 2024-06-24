@@ -20,31 +20,10 @@ transformerState() {
     echo "Setting up transformer state..."
     cd "$dir/../../gillian-instantiation-template"
     eval $(opam env)
-    sed -i '' "s/module Prebuilt = .*/module Prebuilt = Prebuilt.WISL/" bin/main.ml
+    sed -i '' "s/module Prebuilt = .*/module Prebuilt = Prebuilt.JSIL/" bin/main.ml
     dune build
 }
 
-transformerSpeState() {
-    echo "Transformer (specialised) mode not migrated to new organisation !"
-    exit 1
-    # echo "Setting up transformer (specialised) state..."
-    # cd "$dir/../../gillian-instantiation-template"
-    # eval $(opam env)
-    # model="Mapper (WISLSubst) (WISLMap (Freeable (MList (Exclusive))))"
-    # sed -i '' "s/module MyMem = .*/module MyMem = $model/" bin/main.ml
-    # dune build
-}
-
-transformerEntState() {
-    echo "Transformer (entailment) mode not migrated to new organisation !"
-    exit 1
-    # echo "Setting up transformer (entailment) state..."
-    # cd "$dir/../../gillian-instantiation-template"
-    # eval $(opam env)
-    # model="Mapper (WISLSubst) (PMapEnt (LocationIndex) (Freeable (MList (Exclusive))))"
-    # sed -i '' "s/module MyMem = .*/module MyMem = $model/" bin/main.ml
-    # dune build
-}
 
 # $1: Name of the phase
 # $2: Test directory
@@ -79,34 +58,25 @@ test() {
     for i in $(seq 1 $iterations); do
         printf "\n----- Iteration $i -----"
         phase "Verification" verification "$1 verify" "$logfile"
-        phase "Biabduction" biabduction "$1 act" "$logfile"
-        phase "WPST" wpst "$1 wpst" "$logfile"
+        # phase "Biabduction" biabduction "$1 act" "$logfile"
+        # phase "WPST" wpst "$1 wpst" "$logfile"
     done
 
     printf "\n\n"
 }
 
 if [ -z "$1" ]; then
-    echo "Usage: $0 (b|t|s|e|all) [iterations] [test filter]"
-    echo "b: base, t: transformer, s: transformerSpe, e: transformerEnt"
+    echo "Usage: $0 (b|t|a) [iterations] [test filter]"
     exit 1
 fi
 
 if [ "$1" == "b" ] || [ "$1" == "a" ]; then
     baseState
-    test wisl base
+    test gillian-js base
 fi
 if [ "$1" == "t" ] || [ "$1" == "a" ]; then
     transformerState
     test instantiation transformers
-fi
-if [ "$1" == "s" ]; then
-    transformerSpeState
-    test instantiation transformersSpe
-fi
-if [ "$1" == "e" ]; then
-    transformerEntState
-    test instantiation transformersEnt
 fi
 
 ${dir}/../parse.py $dir $(ls -d $dir/*.log)
