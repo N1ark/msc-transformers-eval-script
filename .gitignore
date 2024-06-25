@@ -3,3 +3,4 @@
 !**/runtime/*.gil
 *.log
 *.csv
+.DS_Store
