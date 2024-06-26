@@ -1,0 +1,72 @@
+#internal
+
+proc i__binop_add(v1, v2) {
+        goto [ l-nth(v1, 0i) = "int" ] lint unde;
+  lint: goto [ l-nth(v2, 0i) = "int" ] bint unde;
+  bint: ret := {{ "int", l-nth(v1, 1i) i+ l-nth(v2, 1i) }};
+        return;
+  unde: ret := undefined;
+        return
+};
+
+proc i__binop_addl(v1, v2) {
+        goto [ l-nth(v1, 0i) = "long" ] llon loth;
+  llon: goto [ l-nth(v2, 0i) = "long" ] blon llro;
+  blon: ret := {{ "long", l-nth(v1, 1i) i+ l-nth(v2, 1i) }};
+        return;
+  llro: goto [ typeOf(l-nth(v2, 0i)) = Obj ] llrp unde;
+  llrp: ret := {{ l-nth(v2, 0i), l-nth(v1, 1i) i+ l-nth(v2, 1i) }};
+        return;
+  loth: goto [ typeOf(l-nth(v1, 0i)) = Obj ] lptr unde;
+  lptr: goto [ l-nth(v2, 0i) = "long" ] lprl unde;
+  lprl: ret := {{ l-nth(v1, 0i), l-nth(v1, 1i) i+ l-nth(v2, 1i) }};
+        return;
+  unde: ret := undefined;
+        return
+};
+
+proc i__binop_subl(v1, v2) {
+        goto [ l-nth(v1, 0i) = "long" ] llon loth;
+  llon: goto [ l-nth(v2, 0i) = "long" ] blon unde;
+  blon: ret := {{ "long", l-nth(v1, 1i) i- l-nth(v2, 1i) }};
+        return;
+  loth: goto [ typeOf(l-nth(v1, 0i)) = Obj ] lptr unde;
+  lptr: goto [ l-nth(v2, 0i) = "long" ] lprl lpro;
+  lprl: ret := {{ l-nth(v1, 0i), l-nth(v1, 1i) i- l-nth(v2, 1i) }};
+        return;
+  lpro: goto [ typeOf(l-nth(v2, 0i)) = Obj ] lprp unde;
+  lprp: ret := {{ "long", l-nth(v1, 1i) i- l-nth(v2, 1i) }};
+        return;
+  unde: ret := undefined;
+        return
+};
+
+proc i__binop_sub(v1, v2) {
+        goto [ l-nth(v1, 0i) = "int" ] lint unde;
+  lint: goto [ l-nth(v2, 0i) = "int" ] bint unde;
+  bint: ret := {{ "int", l-nth(v1, 1i) i- l-nth(v2, 1i) }};
+        return;
+  unde: ret := undefined;
+        return
+};
+
+proc i__binop_cmpu_eq(v1, v2) {
+        goto [ (l-nth(v1, 0i) = "int") and (l-nth(v2, 0i) = "int") ] bint unde;
+  bint: ret := "i__value_of_bool"(l-nth(v1, 1i) = l-nth(v2, 1i));
+        return;
+  unde: fail[comparison]("Cannot compare non-comparable values")
+};
+
+proc i__binop_cmpu_le(v1, v2) {
+        goto [ (l-nth(v1, 0i) = "int") and (l-nth(v2, 0i) = "int") ] bint unde;
+  bint: ret := "i__value_of_bool"(l-nth(v1, 1i) i<= l-nth(v2, 1i));
+        return;
+  unde: fail[comparison]("Cannot compare non-comparable values")
+};
+
+proc i__binop_cmpu_ge(v1, v2) {
+        goto [ (l-nth(v1, 0i) = "int") and (l-nth(v2, 0i) = "int") ] bint unde;
+  bint: ret := "i__value_of_bool"(l-nth(v1, 1i) i>= l-nth(v2, 1i));
+        return;
+  unde: fail[comparison]("Cannot compare non-comparable values")
+};

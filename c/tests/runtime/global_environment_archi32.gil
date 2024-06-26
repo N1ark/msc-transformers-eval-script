@@ -1,0 +1,6 @@
+#internal
+
+proc i__ptr_size() {
+  ret := 4i;
+  return
+};

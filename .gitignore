@@ -4,3 +4,5 @@
 *.log
 *.csv
 .DS_Store
+*.deps
+*.i
