@@ -15,7 +15,7 @@ compile() {
     done
 }
 
-# Compile JS:
+# Compile C:
 (
     cd ../Gillian
     eval $(opam env)
