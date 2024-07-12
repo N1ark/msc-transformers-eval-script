@@ -79,7 +79,7 @@ test() {
     for i in $(seq 1 $iterations); do
         printf "\n----- Iteration $i -----"
         phase "Verification" verification "$1 verify" "$logfile"
-        phase "Biabduction" biabduction "$1 act" "$logfile"
+        phase "Biabduction" biabduction "$1 act --specs-to-stdout" "$logfile"
         phase "WPST" wpst "$1 wpst" "$logfile"
     done
 

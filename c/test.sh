@@ -40,26 +40,16 @@ phase() {
             continue
         fi
 
-        if [[ ! "$3" == *"-a"* ]]; then
-            i=$(echo $i | sed 's/\.gil/\.c/')
-        fi
-
         echo -n "- $(basename $i)"
         echo "Running file $i" >> "$4"
-        dune exec --no-build -- $3 --runtime "$runtime" -l disabled "$i" >> "$4" 2>&1
+        dune exec --no-build -- $3 -a --runtime "$runtime" -l disabled "$i" >> "$4" 2>&1
         echo " -- $?"
     done
 }
 
 # $1: Command
 # $2: Log file
-# $3: Optional flag
 test() {
-    flag=""
-    if [ ! -z "$3" ]; then
-        flag="$3"
-    fi
-
     logfile="$dir/$2.log"
     touch "$logfile"
     > "$logfile"
@@ -67,9 +57,9 @@ test() {
 
     for i in $(seq 1 $iterations); do
         printf "\n----- Iteration $i -----"
-        phase "Verification" verification "$1 verify $flag" "$logfile"
-        phase "Biabduction" biabduction "$1 act $flag" "$logfile"
-        phase "WPST" wpst "$1 wpst $flag" "$logfile"
+        phase "Verification" verification "$1 verify" "$logfile"
+        phase "Biabduction" biabduction "$1 act --specs-to-stdout" "$logfile"
+        phase "WPST" wpst "$1 wpst" "$logfile"
     done
 
     printf "\n\n"
@@ -86,7 +76,7 @@ if [ "$1" == "b" ] || [ "$1" == "a" ]; then
 fi
 if [ "$1" == "t" ] || [ "$1" == "a" ]; then
     transformerState
-    test instantiation transformers "-a"
+    test instantiation transformers
 fi
 
 ${dir}/../parse.py $dir $(ls -d $dir/*.log)
