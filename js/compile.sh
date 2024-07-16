@@ -22,4 +22,5 @@ compile() {
     compile "$dir/tests/verification" verification
     compile "$dir/tests/biabduction" bi-abduction
     compile "$dir/tests/wpst" wpst
+    compile "$dir/tests/buckets" wpst
 )

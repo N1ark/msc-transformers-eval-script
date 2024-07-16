@@ -20,7 +20,7 @@ transformerState() {
     echo "Setting up transformer state..."
     cd "$dir/../../gillian-instantiation-template"
     eval $(opam env)
-    sed -i '' "s/module Prebuilt = .*/module Prebuilt = Prebuilt.WISL/" bin/main.ml
+    sed -i '' "s/module Prebuilt = .*/module Prebuilt = Prebuilt.Lib.WISL/" bin/main.ml
     dune build
 }
 
@@ -75,6 +75,7 @@ test() {
     touch "$logfile"
     > "$logfile"
     echo "Running tests ($(date))" >> "$logfile"
+    echo "Iterations: $iterations" >> "$logfile"
 
     for i in $(seq 1 $iterations); do
         printf "\n----- Iteration $i -----"
