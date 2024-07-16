@@ -16,19 +16,12 @@ def parse_file(file_path):
     file = None
     iterations = 1
 
-    def increase(duration):
-        if mode is None or file is None:
-            return
-        d = 0.0
-        for i in range(len(durations)):
-            e = durations[i]
-            if e[0] == mode and e[1] == file:
-                durations.pop(i)
-                d = e[2]
-                break
+    duration_so_far = 0.0
 
-        d += duration
-        durations.append((mode, file, d))
+    def flush():
+        if mode is None or file is None or duration_so_far == 0.0:
+            return
+        durations.append((mode, file, duration_so_far))
 
     with open(file_path, "r") as f:
         for line in f:
@@ -37,26 +30,29 @@ def parse_file(file_path):
             elif line.startswith("Mode "):
                 mode = line.split(" ")[1]
                 mode = mode.split(":")[0]
+                duration_so_far = 0.0
             elif line.startswith("Running file ") and not line.endswith(":"):
+                flush()
+                duration_so_far = 0.0
                 file = line.split("/")[-1]
             elif line.startswith("All specs succeeded"):
                 dur = line.split("succeeded: ")[1]
-                increase(float(dur))
+                duration_so_far += float(dur)
             elif line.startswith("There were failures"):
                 dur = line.split("failures: ")[1]
-                increase(float(dur))
+                duration_so_far += float(dur)
             elif regex.match(biabduct_regex, line):
                 dur = regex.match(biabduct_regex, line).group(1)
-                increase(float(dur))
+                duration_so_far += float(dur)
             elif line.startswith("Compilation time:"):
                 # negate to make up for extra
                 dur = line.split("time: ")[1]
                 dur = dur.split("s")[0]
-                increase(-float(dur))
+                duration_so_far -= float(dur)
             elif line.startswith("Total time (Compilation + Symbolic testing)"):
                 dur = line.split("Symbolic testing):")[1]
                 dur = dur.split("s")[0]
-                increase(float(dur))
+                duration_so_far += float(dur)
 
     # Average by iterations
     durations = [(mode, file, dur / iterations) for mode, file, dur in durations]
@@ -213,8 +209,6 @@ if __name__ == "__main__":
     data = {}
     groups = []
     for exec, _, cat, file, _, rel in rel_entries:
-        if file == "bag4half.gil":
-            continue
         if exec == "base":
             groups.append(cat)
             continue
@@ -236,4 +230,5 @@ if __name__ == "__main__":
     sns.despine()
     plt.xticks(rotation=45)
     plt.tight_layout()
+    plt.axhline(y=0, color="black", linewidth=0.5)
     plt.show()
