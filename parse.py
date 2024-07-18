@@ -6,6 +6,10 @@ import sys
 import regex
 import csv
 
+import matplotlib.pyplot as plt
+import pandas as pd
+import seaborn as sns
+
 biabduct_regex = r"\w+, \d+, \d+, \d+, \d+, ([\d.]+)"
 cat_regex = r"^[A-Za-z]+"
 
@@ -70,165 +74,58 @@ if __name__ == "__main__":
     if not os.path.exists(dest):
         os.makedirs(dest)
 
-    entries: List[Tuple[str, str, str, str, float]] = []
-
-    def get_cat(file):
-        m = regex.match(cat_regex, file)
-        if m is None:
-            return file
-        return m.group(0)
+    entries: List[Tuple[str, str, str, float]] = []
 
     for file in sys.argv[2:]:
         file = file.strip()
         durations = parse_file(file)
         execution = file.split("/")[-1]
         execution = execution.split(".")[0]
-        entries.extend(
-            [
-                (execution, mode, get_cat(file), file, dur)
-                for mode, file, dur in durations
-            ]
-        )
+        entries.extend([(execution, mode, file, dur) for mode, file, dur in durations])
         print(f"Parsed {file} ({execution})")
 
-    # exec, mode, cat, file, dur, rel
-    rel_entries: List[Tuple[str, str, str, str, float, float]] = []
-    for exec, mode, cat, file, dur in entries:
-        if exec == "base":
-            rel_entries.append((exec, mode, cat, file, dur, 0))
-            continue
-        base_dur = None
-        for e, m, c, f, d in entries:
-            if e == "base" and m == mode and c == cat and f == file:
-                base_dur = d
-                break
-        if base_dur is None:
-            print("Could not find base for", exec, mode, cat, file)
-            rel_entries.append((exec, mode, cat, file, dur, -1))
-            continue
-        rel_entries.append(
-            (exec, mode, cat, file, dur, (base_dur - dur) / base_dur * 100)
-        )
+    df = pd.DataFrame(entries, columns=["execution", "mode", "filename", "duration"])
 
-    # sum durations by cat, ignoring relative
-    cat_entries: List[Tuple[str, str, str, float]] = []
-    done_cats = set()
-    for exec, mode, cat, file, dur, _ in rel_entries:
-        if (exec, mode, cat) in done_cats:
-            continue
-        sum_dur = 0
-        for e, m, c, _, d, _ in rel_entries:
-            if e == exec and m == mode and c == cat:
-                sum_dur += d
-        cat_entries.append((exec, mode, cat, sum_dur))
-        done_cats.add((exec, mode, cat))
-    rel_cat_entries: List[Tuple[str, str, str, float, float]] = []
-    for exec, mode, cat, dur in cat_entries:
-        if exec == "base":
-            rel_cat_entries.append((exec, mode, cat, dur, 0))
-            continue
-        base_dur = None
-        for e, m, c, d in cat_entries:
-            if e == "base" and m == mode and c == cat:
-                base_dur = d
-                break
-        if base_dur is None:
-            print("Could not find base for", exec, mode, cat)
-            rel_cat_entries.append((exec, mode, cat, dur, -1))
-            continue
-        rel_cat_entries.append(
-            (exec, mode, cat, dur, (base_dur - dur) / base_dur * 100)
-        )
-
-    # sum durations by mode, ignoring relative
-    mode_entries: List[Tuple[str, str, float]] = []
-    done_modes = set()
-    for exec, mode, cat, file, dur, _ in rel_entries:
-        if (exec, mode) in done_modes:
-            continue
-        sum_dur = 0
-        for e, m, _, _, d, _ in rel_entries:
-            if e == exec and m == mode:
-                sum_dur += d
-        mode_entries.append((exec, mode, sum_dur))
-        done_modes.add((exec, mode))
-    mode_rel_entries: List[Tuple[str, str, float, float]] = []
-    for exec, mode, dur in mode_entries:
-        if exec == "base":
-            mode_rel_entries.append((exec, mode, dur, 0))
-            continue
-        base_dur = None
-        for e, m, d in mode_entries:
-            if e == "base" and m == mode:
-                base_dur = d
-                break
-        if base_dur is None:
-            print("Could not find base for", execution, mode)
-            mode_rel_entries.append((execution, mode, dur, -1))
-            continue
-        mode_rel_entries.append(
-            (execution, mode, dur, (base_dur - dur) / base_dur * 100)
-        )
-
-    with open(dest + "mode_durations.csv", "w+") as f:
-        writer = csv.writer(f)
-        writer.writerow(["execution", "mode", "duration", "relative (%)"])
-        for entry in mode_rel_entries:
-            writer.writerows([entry])
-
-    with open(dest + "file_durations.csv", "w+") as f:
-        writer = csv.writer(f)
-        writer.writerow(
-            ["execution", "mode", "category", "filename", "duration", "relative (%)"]
-        )
-        for entry in rel_entries:
-            writer.writerows([entry])
-
-    with open(dest + "category_durations.csv", "w+") as f:
-        writer = csv.writer(f)
-        writer.writerow(["execution", "mode", "category", "duration", "relative (%)"])
-        for entry in rel_cat_entries:
-            writer.writerows([entry])
-
-    print(
-        "Wrote: ",
-        len(mode_entries),
-        "mode entries",
-        len(rel_entries),
-        "file entries",
-        len(rel_cat_entries),
-        "category entries",
+    # calculate relative differences in durations, compared to the average of the base executions for that file
+    df_base = (
+        df[df["execution"] == "base"]
+        .groupby("filename")["duration"]
+        .mean()
+        .reset_index()
     )
+    df_base.columns = ["filename", "base"]
+    df = df.merge(df_base, on="filename")
+    df["relative"] = (df["base"] - df["duration"]) / df["base"]
+    df.drop("base", axis=1, inplace=True)
 
-    import matplotlib.pyplot as plt
-    import pandas as pd
-    import seaborn as sns
+    # save base
+    df.to_csv(dest + "file_durations.csv", index=False)
+
+    # save summed by mode
+    df_mode = df.groupby(["execution", "mode"])["duration"].sum().reset_index()
+    df_mode.to_csv(dest + "mode_durations.csv", index=False)
+
+    print("Wrote: ", len(df), "entries")
 
     # plot the relative differences in durations, per mode+category, using boxplots
-    fig, ax = plt.subplots()
-    data = {}
-    groups = []
-    for exec, _, cat, file, _, rel in rel_entries:
-        if exec == "base":
-            groups.append(cat)
-            continue
-        if exec not in data:
-            data[exec] = []
-        data[exec].append(rel)
+    def show_relative_diffs():
+        fig, ax = plt.subplots()
+        data = df[df["execution"] != "base"]
+        sns.boxplot(y="relative", x="filename", hue="execution", data=data, ax=ax)
+        sns.despine()
+        plt.xticks(rotation=45)
+        plt.tight_layout()
+        plt.axhline(y=0, color="black", linewidth=0.5)
 
-    df = pd.DataFrame(data)
-    df["Category"] = groups
-    ax = (
-        df.set_index("Category", append=True)
-        .stack()
-        .to_frame()
-        .reset_index()
-        .rename(columns={"level_2": "execution", 0: "relative"})
-        .drop("level_0", axis="columns")
-        .pipe((sns.boxplot, "data"), x="Category", y="relative", hue="execution")
-    )
-    sns.despine()
-    plt.xticks(rotation=45)
-    plt.tight_layout()
-    plt.axhline(y=0, color="black", linewidth=0.5)
+    # plot the average duration per mode using barplots
+    def show_avg_durations():
+        fig, ax = plt.subplots()
+        data = df.groupby(["execution", "mode"])["duration"].mean().reset_index()
+        sns.barplot(y="duration", x="mode", hue="execution", data=data, ax=ax)
+        sns.despine()
+        plt.xticks(rotation=45)
+        plt.tight_layout()
+
+    show_relative_diffs()
+
     plt.show()

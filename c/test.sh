@@ -16,14 +16,25 @@ baseState() {
     dune build
 }
 
-transformerState() {
+_transformerState() {
     echo "Setting up transformer state..."
     cd "$dir/../../gillian-instantiation-template"
     eval $(opam env)
-    sed -i '' "s/module Prebuilt = .*/module Prebuilt = Prebuilt.Lib.C/" bin/main.ml
+    sed -i '' "s/module Prebuilt = .*/module Prebuilt = $1/" bin/main.ml
     dune build
 }
 
+transformerState() {
+    _transformerState "Prebuilt.Lib.C_Base"
+}
+
+transformerALocState() {
+    _transformerState "Prebuilt.Lib.C_ALoc"
+}
+
+transformerSplitState() {
+    _transformerState "Prebuilt.Lib.C_Split"
+}
 
 # $1: Name of the phase
 # $2: Test directory
@@ -58,9 +69,10 @@ test() {
 
     for i in $(seq 1 $iterations); do
         printf "\n----- Iteration $i -----"
-        phase "Verification" verification "$1 verify" "$logfile"
-        phase "Biabduction" biabduction "$1 act --specs-to-stdout" "$logfile"
-        phase "WPST" wpst "$1 wpst" "$logfile"
+        # phase "Verification" verification "$1 verify" "$logfile"
+        # phase "Biabduction" biabduction "$1 act --specs-to-stdout" "$logfile"
+        # phase "WPST" wpst "$1 wpst" "$logfile"
+        phase "Collections-C" collections-c "$1 wpst" "$logfile"
     done
 
     printf "\n\n"
@@ -77,7 +89,15 @@ if [ "$1" == "b" ] || [ "$1" == "a" ]; then
 fi
 if [ "$1" == "t" ] || [ "$1" == "a" ]; then
     transformerState
-    test instantiation transformers
+    test instantiation tr
+fi
+if [ "$1" == "aloc" ] || [ "$1" == "a" ]; then
+    transformerALocState
+    test instantiation tr-aloc
+fi
+if [ "$1" == "split" ] || [ "$1" == "a" ]; then
+    transformerSplitState
+    test instantiation tr-split
 fi
 
 ${dir}/../parse.py $dir $(ls -d $dir/*.log)
