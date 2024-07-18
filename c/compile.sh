@@ -11,7 +11,22 @@ compile() {
         if [ ! -z "$filter" ] && [[ ! "$i" == *"$filter"* ]]; then
             continue
         fi
-        (dune exec -- gillian-c compile --$2 "$i" > /dev/null  && echo "Compiled $i") || echo "Failed to compile $i -- ignoring."
+        (dune exec -- gillian-c compile --$2 "$i" > /dev/null && echo "Compiled $i") || echo "Failed to compile $i -- ignoring."
+    done
+}
+
+# $1: folder with the collections-c-for-gillian files
+compileCollectionsC() {
+    for i in $(ls -d "$1"/*.c); do
+        if [ ! -z "$filter" ] && [[ ! "$i" == *"$filter"* ]]; then
+            continue
+        fi
+        (
+            dune exec -- gillian-c compile --wpst \
+                -I "$1/headers" -S "$1/sources" \
+                --ignore-undef --allocated-functions "$i" \
+            > /dev/null && echo "Compiled $i"
+        ) || echo "Failed to compile $i -- ignoring."
     done
 }
 
@@ -22,4 +37,5 @@ compile() {
     compile "$dir/tests/verification" verification
     compile "$dir/tests/biabduction" bi-abduction
     compile "$dir/tests/wpst" wpst
+    compileCollectionsC "$dir/tests/collections-c"
 )
