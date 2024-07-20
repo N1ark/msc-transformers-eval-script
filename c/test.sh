@@ -69,9 +69,9 @@ test() {
 
     for i in $(seq 1 $iterations); do
         printf "\n----- Iteration $i -----"
-        # phase "Verification" verification "$1 verify" "$logfile"
-        # phase "Biabduction" biabduction "$1 act --specs-to-stdout" "$logfile"
-        # phase "WPST" wpst "$1 wpst" "$logfile"
+        phase "Verification" verification "$1 verify" "$logfile"
+        phase "Biabduction" biabduction "$1 act --specs-to-stdout" "$logfile"
+        phase "WPST" wpst "$1 wpst" "$logfile"
         phase "Collections-C" collections-c "$1 wpst" "$logfile"
     done
 
@@ -99,7 +99,5 @@ if [ "$1" == "split" ] || [ "$1" == "a" ]; then
     transformerSplitState
     test instantiation tr-split
 fi
-
-${dir}/../parse.py $dir $(ls -d $dir/*.log)
 
 echo "Done."

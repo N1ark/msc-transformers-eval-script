@@ -74,7 +74,8 @@ test() {
     for i in $(seq 1 $iterations); do
         printf "\n----- Iteration $i -----"
         phase "Verification" verification "$1 verify" "$logfile"
-        phase "Biabduction" biabduction "$1 act" "$logfile"
+        # They don't work :(
+        # phase "Biabduction" biabduction "$1 act" "$logfile"
         phase "WPST" wpst "$1 wpst" "$logfile"
         phase "Buckets" buckets "$1 wpst" "$logfile"
     done
@@ -107,7 +108,5 @@ if [ "$1" == "alocsplit" ] || [ "$1" == "a" ]; then
     transformerALocSplitState
     test instantiation tr-alocsplit
 fi
-
-${dir}/../parse.py $dir $(ls -d $dir/*.log)
 
 echo "Done."

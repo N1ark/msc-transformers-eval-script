@@ -16,34 +16,25 @@ baseState() {
     dune build
 }
 
-transformerState() {
-    echo "Setting up transformer state..."
+
+_transformerState() {
+    echo "Setting up transformer state ($1)..."
     cd "$dir/../../gillian-instantiation-template"
     eval $(opam env)
-    sed -i '' "s/module Prebuilt = .*/module Prebuilt = Prebuilt.Lib.WISL/" bin/main.ml
+    sed -i '' "s/module Prebuilt = .*/module Prebuilt = $1/" bin/main.ml
     dune build
 }
 
-transformerSpeState() {
-    echo "Transformer (specialised) mode not migrated to new organisation !"
-    exit 1
-    # echo "Setting up transformer (specialised) state..."
-    # cd "$dir/../../gillian-instantiation-template"
-    # eval $(opam env)
-    # model="Mapper (WISLSubst) (WISLMap (Freeable (MList (Exclusive))))"
-    # sed -i '' "s/module MyMem = .*/module MyMem = $model/" bin/main.ml
-    # dune build
+transformerState() {
+    _transformerState "Prebuilt.Lib.WISL_Base"
 }
 
-transformerEntState() {
-    echo "Transformer (entailment) mode not migrated to new organisation !"
-    exit 1
-    # echo "Setting up transformer (entailment) state..."
-    # cd "$dir/../../gillian-instantiation-template"
-    # eval $(opam env)
-    # model="Mapper (WISLSubst) (PMapEnt (LocationIndex) (Freeable (MList (Exclusive))))"
-    # sed -i '' "s/module MyMem = .*/module MyMem = $model/" bin/main.ml
-    # dune build
+transformerALocState() {
+    _transformerState "Prebuilt.Lib.WISL_ALoc"
+}
+
+transformerSplitState() {
+    _transformerState "Prebuilt.Lib.WISL_Split"
 }
 
 # $1: Name of the phase
@@ -99,17 +90,15 @@ if [ "$1" == "b" ] || [ "$1" == "a" ]; then
 fi
 if [ "$1" == "t" ] || [ "$1" == "a" ]; then
     transformerState
-    test instantiation transformers
+    test instantiation tr
 fi
-if [ "$1" == "s" ]; then
-    transformerSpeState
-    test instantiation transformersSpe
+if [ "$1" == "a" ]; then
+    transformerALocState
+    test instantiation tr-aloc
 fi
-if [ "$1" == "e" ]; then
-    transformerEntState
-    test instantiation transformersEnt
+if [ "$1" == "a" ]; then
+    transformerSplitState
+    test instantiation tr-split
 fi
-
-${dir}/../parse.py $dir $(ls -d $dir/*.log)
 
 echo "Done."
