@@ -58,6 +58,17 @@ phase() {
     done
 }
 
+phaseAmazon() {
+    awsDir="$dir/tests/amazon"
+    printf "\nRunning Amazon tests..."
+    echo "Running file $awsDir/edk.c" >> "$2"
+    dune exec --no-build -- $1 verify \
+        $awsDir/header.c $awsDir/edk.c $awsDir/array_list.c $awsDir/ec.c $awsDir/byte_buf.c \
+        $awsDir/hash_table.c $awsDir/string.c $awsDir/allocator.c $awsDir/error.c $awsDir/base.c \
+        --fstruct-passing --no-lemma-proof -l disabled --runtime "$runtime" -I $awsDir/includes  >> "$2" 2>&1
+    echo " -- $?"
+}
+
 # $1: Command
 # $2: Log file
 test() {
@@ -73,6 +84,7 @@ test() {
         phase "Biabduction" biabduction "$1 act --specs-to-stdout" "$logfile"
         phase "WPST" wpst "$1 wpst" "$logfile"
         phase "Collections-C" collections-c "$1 wpst" "$logfile"
+        phaseAmazon $1 "$logfile"
     done
 
     printf "\n\n"

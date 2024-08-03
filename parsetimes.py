@@ -104,6 +104,7 @@ if __name__ == "__main__":
             "file_id",
         ],
     )
+    print("Parsed ", len(df), " entries")
 
     df["file"] = df["mode"] + "/" + df["file"]
     df["duration"] = (
@@ -171,8 +172,8 @@ if __name__ == "__main__":
         legend = actions
         prev = None
         for action in actions:
-            subdata = data[data["action"] == action]
-            subdata = subdata.groupby("execution").sum()
+            subdata = data[data["action"] == action][["execution", "total_duration"]]
+            subdata = subdata.groupby("execution").mean()
             subdata = subdata.reset_index()
             if prev is None:
                 prev = subdata["total_duration"]
@@ -232,8 +233,8 @@ if __name__ == "__main__":
         legend = actions
         prev = None
         for action in actions:
-            subdata = data[data["action"] == action]
-            subdata = subdata.groupby("execution").sum()
+            subdata = data[data["action"] == action][["execution", "total_duration"]]
+            subdata = subdata.groupby("execution").mean()
             subdata = subdata.reset_index()
             color = None
             if action.startswith("cons"):

@@ -134,7 +134,7 @@ if __name__ == "__main__":
 
     def show_mode_relative_diffs(fig, ax):
         data = df[df["execution"] != "base"]
-        colors = sns.color_palette("bright", n_colors=len(data["mode"].unique()) + 1)[1:]
+        colors = sns.color_palette("bright", n_colors=len(data["execution"].unique()) + 1)[1:]
         sns.boxplot(
             y="relative", x="mode", hue="execution", data=data, ax=ax, palette=colors
         )
@@ -181,7 +181,7 @@ if __name__ == "__main__":
     def show_avg_mode_relative_diff(fig, ax):
         data = df[df["execution"] != "base"]
         data = data.groupby(["execution", "mode"])["relative"].mean().reset_index()
-        colors = sns.color_palette("bright", n_colors=len(data["mode"].unique()) + 1)[1:]
+        colors = sns.color_palette("bright", n_colors=len(data["execution"].unique()) + 1)[1:]
         sns.barplot(
             y="relative", x="mode", hue="execution", data=data, ax=ax, palette=colors
         )
