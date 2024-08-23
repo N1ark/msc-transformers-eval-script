@@ -17,7 +17,7 @@ baseState() {
 }
 
 _transformerState() {
-    echo "Setting up transformer state..."
+    echo "Setting up transformer state ($1)..."
     cd "$dir/../../gillian-instantiation-template"
     eval $(opam env)
     sed -i '' "s/module Prebuilt = .*/module Prebuilt = $1/" bin/main.ml
@@ -59,13 +59,52 @@ phase() {
 }
 
 phaseAmazon() {
-    awsDir="$dir/tests/amazon"
-    printf "\nRunning Amazon tests..."
-    echo "Running file $awsDir/edk.c" >> "$2"
+    awsDir="$dir/tests"
+
+    printf "\n\n"
+    echo "Amazon tests..."
+    printf "\nMode Amazon:\n" >> "$2"
+
+    echo -n "- Simpler tests"
+    echo "Running file proc/aws/simple" >> "$2"
     dune exec --no-build -- $1 verify \
-        $awsDir/header.c $awsDir/edk.c $awsDir/array_list.c $awsDir/ec.c $awsDir/byte_buf.c \
-        $awsDir/hash_table.c $awsDir/string.c $awsDir/allocator.c $awsDir/error.c $awsDir/base.c \
-        --fstruct-passing --no-lemma-proof -l disabled --runtime "$runtime" -I $awsDir/includes  >> "$2" 2>&1
+        $awsDir/amazon/header.c $awsDir/amazon/edk.c $awsDir/amazon/array_list.c $awsDir/amazon/ec.c $awsDir/amazon/byte_buf.c \
+        $awsDir/amazon/hash_table.c $awsDir/amazon/string.c $awsDir/amazon/allocator.c $awsDir/amazon/error.c $awsDir/amazon/base.c \
+        --runtime "$runtime" -I $awsDir/amazon/includes \
+        --proc aws_cryptosdk_algorithm_taglen --proc aws_byte_cursor_read --proc aws_byte_buf_clean_up \
+        --proc aws_byte_cursor_read_u8 --proc aws_cryptosdk_algorithm_ivlen \
+        --proc aws_byte_cursor_read_and_fill_buffer --proc aws_byte_cursor_read_be32 --proc aws_byte_cursor_read_be16 \
+        --proc aws_cryptosdk_algorithm_is_known --proc aws_string_destroy --proc aws_cryptosdk_hdr_clear \
+        --proc aws_string_new_from_array --proc aws_byte_cursor_advance --proc is_known_type \
+        --fstruct-passing --no-lemma-proof -l disabled >> "$2" 2>&1
+    echo " -- $?"
+
+    echo -n "- aws_cryptosdk_hdr_parse"
+    echo "Running file proc/aws/aws_cryptosdk_hdr_parse" >> "$2"
+    dune exec --no-build -- $1 verify \
+        $awsDir/amazon/header.c $awsDir/amazon/edk.c $awsDir/amazon/array_list.c $awsDir/amazon/ec.c $awsDir/amazon/byte_buf.c \
+        $awsDir/amazon/hash_table.c $awsDir/amazon/string.c $awsDir/amazon/allocator.c $awsDir/amazon/error.c $awsDir/amazon/base.c \
+        --runtime "$runtime" -I $awsDir/amazon/includes --proc aws_cryptosdk_hdr_parse \
+        --fstruct-passing --no-lemma-proof -l disabled >> "$2" 2>&1
+    echo " -- $?"
+
+    echo -n "- aws_cryptosdk_enc_ctx_deserialize"
+    echo "Running file proc/aws/aws_cryptosdk_enc_ctx_deserialize" >> "$2"
+    dune exec --no-build -- $1 verify \
+        $awsDir/amazon/header.c $awsDir/amazon/edk.c $awsDir/amazon/array_list.c $awsDir/amazon/ec.c $awsDir/amazon/byte_buf.c \
+        $awsDir/amazon/hash_table.c $awsDir/amazon/string.c $awsDir/amazon/allocator.c $awsDir/amazon/error.c $awsDir/amazon/base.c \
+        --runtime "$runtime" -I $awsDir/amazon/includes --proc aws_cryptosdk_enc_ctx_deserialize \
+        --fstruct-passing --no-lemma-proof -l disabled >> "$2" 2>&1
+    echo " -- $?"
+
+    echo -n "- parse_edk"
+    echo "Running file proc/aws/parse_edk" >> "$2"
+    # Z3 is a bit flaky and this test fails by itself, but passes if verified with anything else (eg. aws_byte_buf_init)
+    dune exec --no-build -- $1 verify \
+        $awsDir/amazon/header.c $awsDir/amazon/edk.c $awsDir/amazon/array_list.c $awsDir/amazon/ec.c $awsDir/amazon/byte_buf.c \
+        $awsDir/amazon/hash_table.c $awsDir/amazon/string.c $awsDir/amazon/allocator.c $awsDir/amazon/error.c $awsDir/amazon/base.c \
+        --runtime $awsDir/runtime -I $awsDir/amazon/includes --proc aws_byte_buf_init --proc parse_edk \
+        --fstruct-passing --no-lemma-proof -l disabled >> "$2" 2>&1
     echo " -- $?"
 }
 
@@ -99,15 +138,15 @@ if [ "$1" == "b" ] || [ "$1" == "a" ]; then
     baseState
     test gillian-c base
 fi
-if [ "$1" == "t" ] || [ "$1" == "a" ]; then
+if [ "$1" == "t" ] || [ "$1" == "T" ] || [ "$1" == "a" ]; then
     transformerState
     test instantiation tr
 fi
-if [ "$1" == "aloc" ] || [ "$1" == "a" ]; then
+if [ "$1" == "aloc" ] || [ "$1" == "T" ] || [ "$1" == "a" ]; then
     transformerALocState
     test instantiation tr-aloc
 fi
-if [ "$1" == "split" ] || [ "$1" == "a" ]; then
+if [ "$1" == "split" ] || [ "$1" == "T" ] || [ "$1" == "a" ]; then
     transformerSplitState
     test instantiation tr-split
 fi

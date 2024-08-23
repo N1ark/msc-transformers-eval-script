@@ -92,7 +92,7 @@ if [ "$1" == "t" ] || [ "$1" == "a" ]; then
     transformerState
     test instantiation tr
 fi
-if [ "$1" == "a" ]; then
+if [ "$1" == "a" ] || [ "$1" == "aloc" ]; then
     transformerALocState
     test instantiation tr-aloc
 fi

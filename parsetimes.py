@@ -60,6 +60,7 @@ if __name__ == "__main__":
         durations = parse_file(file)
         execution = file.split("/")[-1]
         execution = execution.split(".")[0]
+        execution = execution.replace("_", "")
         entries.extend(
             [
                 (execution, mode, file, action, dur, count, file_id)
@@ -74,22 +75,24 @@ if __name__ == "__main__":
             for e in entries
             if e[1].lower().find(mode_filter.lower()) != -1
         ]
+    print(f"Filtered to {len(entries)} entries with mode {mode_filter}")
 
     # add missing actions as 0 for each (execution, mode, file)
     keys = set([(e[0], e[1], e[2]) for e in entries])
     actions = set([e[3] for e in entries])
+    entries_set = set([(e[0], e[1], e[2], e[3]) for e in entries])
+    print(f"Found {len(keys)} keys and {len(actions)} actions in {len(entries_set)} groups")
     for key in keys:
         for action in actions:
             if not any(
-                [
-                    e[0] == key[0]
-                    and e[1] == key[1]
-                    and e[2] == key[2]
-                    and e[3] == action
-                    for e in entries
-                ]
+                e[0] == key[0]
+                and e[1] == key[1]
+                and e[2] == key[2]
+                and e[3] == action
+                for e in entries_set
             ):
                 entries.append((key[0], key[1], key[2], action, 0.0, 0.0, 0))
+    print(f"Added missing actions, now {len(entries)} entries")
 
     # make pd dataframe with execution, action, duration
     df = pd.DataFrame(
@@ -114,6 +117,8 @@ if __name__ == "__main__":
     df["action"] = df["action"].str.replace("produce", "prod")
     df["action"] = df["action"].str.replace("execute_action", "ea")
 
+    df.sort_values(["execution", "mode", "file"], inplace=True)
+
     def avg_action_duration(fig, ax):
         data = df.copy()
         sns.barplot(
@@ -132,20 +137,26 @@ if __name__ == "__main__":
         plt.title("Average action duration for 1000 executions")
         ax.grid(axis="y")
         for container in ax.containers:
-            ax.bar_label(container, fmt="%.2f")
+            ax.bar_label(container, fmt="%.1f")
 
     def avg_action_call_count(fig, ax):
         data = df.copy()
-        sns.barplot(
-            x="action", y="count", hue="execution", data=data, ax=ax, palette="bright"
+        data = data.groupby("action").sum()["count"]
+        # group all actions with less than 1% of the total count into a single "other" category
+        data = pd.concat(
+            [
+                data[data >= data.sum() * 0.01],
+                pd.Series(data[data < data.sum() * 0.01].sum(), index=["other"]),
+            ]
         )
-        sns.despine()
-        plt.xticks(rotation=90)
-        plt.tight_layout()
-        plt.axhline(y=0, color="black", linewidth=0.5)
-        plt.ylabel("Call count")
+        data = data[data >= data.sum() * 0.005] # hide anything < 0.5%
+        data = data.sort_values(ascending=False)
+        plt.pie(
+            data,
+            labels=data.index,
+            colors=sns.color_palette("bright"),
+        )
         plt.title("Action call count for one run of the tests")
-        ax.grid(axis="y")
 
     # total time spent per action, as stacked bar chart, condensing produce/consume/execute_action
     def time_spent_per_action(fix, ax):
@@ -159,6 +170,10 @@ if __name__ == "__main__":
         # average by file (avoids repetition from different iteration counts)
         data = data.groupby(["execution", "mode", "file", "action"]).mean()
         data = data.reset_index()
+
+        # actions to filter out, as they are too small to matter
+        other = ["is_overlapping_asrt", "lvars", "mem_constraints", "get_recovery_tactic", "copy"]
+        data = data[~data["action"].isin(other)]
 
         # get actions sorted by average duration
         actions = (
@@ -265,9 +280,11 @@ if __name__ == "__main__":
                 )
                 prev += subdata["total_duration"]
         ax.grid(axis="y")
+        box = ax.get_position()
+        ax.set_position([box.x0, box.y0, box.width * 0.7, box.height])
         plt.ylabel("Total time spent (ms)")
         plt.title("Detailed shares of total time spent for one run of the tests")
-        plt.legend(legend)
+        plt.legend(legend, loc="lower left", bbox_to_anchor=(1, 0))
 
     views = [
         avg_action_duration,

@@ -82,6 +82,7 @@ if __name__ == "__main__":
         durations = parse_file(file)
         execution = file.split("/")[-1]
         execution = execution.split(".")[0]
+        execution = execution.replace("_", "")
         entries.extend([(execution, mode, file, dur) for mode, file, dur in durations])
         print(f"Parsed {file} ({execution})")
 
@@ -104,6 +105,7 @@ if __name__ == "__main__":
     df = df.merge(df_base, on="filename", how="left")
     df["relative"] = (df["base"] - df["duration"]) / df["base"] * 100
     df.drop("base", axis=1, inplace=True)
+    df.sort_values(["execution", "mode", "filename"], inplace=True)
 
     # save base
     df.to_csv(dest + "file_durations.csv", index=False)
@@ -182,15 +184,17 @@ if __name__ == "__main__":
         data = df[df["execution"] != "base"]
         data = data.groupby(["execution", "mode"])["relative"].mean().reset_index()
         colors = sns.color_palette("bright", n_colors=len(data["execution"].unique()) + 1)[1:]
-        sns.barplot(
-            y="relative", x="mode", hue="execution", data=data, ax=ax, palette=colors
+        g = sns.barplot(
+            y="relative", x="mode", hue="execution", data=data, ax=ax, palette=colors,
         )
+        g.legend(loc=3)
         sns.despine()
         plt.xticks(rotation=45)
         plt.axhline(y=0, color="black", linewidth=0.5)
         plt.tight_layout()
         plt.title("Average of relative differences per mode")
         ax.grid(axis="y")
+        plt.ylabel("Relative difference (%)")
         for container in ax.containers:
             ax.bar_label(container, fmt="%.2f%%")
 
