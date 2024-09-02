@@ -9,6 +9,13 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 
+from matplotlib import font_manager
+font_path = '/Users/oscar/Library/Fonts/cmunrm.ttf'
+font_manager.fontManager.addfont(font_path)
+prop = font_manager.FontProperties(fname=font_path)
+
+plt.rcParams['font.family'] = 'serif'
+plt.rcParams['font.serif'] = prop.get_name()
 
 ignored_files = [".DS_Store"]
 
@@ -113,8 +120,9 @@ if __name__ == "__main__":
                 prev += subdata["locs"]
         ax.grid(axis="y")
         plt.ylabel("LOCs")
+        plt.legend(legend, loc="lower left", bbox_to_anchor=(1, 0))
         plt.title("LOCs per instantiation")
-        plt.legend(legend)
+        plt.tight_layout()
 
     views = [show_locs]
 

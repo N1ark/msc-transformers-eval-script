@@ -11,9 +11,16 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 
+from matplotlib import font_manager
+font_path = '/Users/oscar/Library/Fonts/cmunrm.ttf'
+font_manager.fontManager.addfont(font_path)
+prop = font_manager.FontProperties(fname=font_path)
+
+plt.rcParams['font.family'] = 'serif'
+plt.rcParams['font.serif'] = prop.get_name()
+
 
 # execute_action/Alloc: 0.3ms (427)
-
 time_regex = r"([\w|/]+): ([\d.]+)ms \((\d+)\)"
 
 
@@ -119,6 +126,31 @@ if __name__ == "__main__":
 
     df.sort_values(["execution", "mode", "file"], inplace=True)
 
+    def cleanup_graph(
+        ax,
+        *,
+        legend=None, filename=None, title=None, axis="y", x_label=None, y_label=None, no_line=False
+    ):
+        if legend is False:
+            lgd = None
+        elif legend is not None:
+            lgd = plt.legend(legend, loc="lower left", bbox_to_anchor=(1, 0))
+        else:
+            lgd = plt.legend(loc="lower left", bbox_to_anchor=(1, 0))
+        plt.xticks(rotation=90)
+        if not no_line:
+            plt.axhline(y=0, color="black", linewidth=0.5)
+        plt.ylabel(y_label)
+        plt.xlabel(x_label)
+        if axis:
+            ax.grid(axis=axis)
+        if filename is not None:
+            lgd = None if lgd is None else (lgd,)
+            fig.savefig(f"{filename}.svg", bbox_extra_artists=lgd, bbox_inches="tight")
+        if title is not None:
+            plt.title(title)
+
+
     def avg_action_duration(fig, ax):
         data = df.copy()
         sns.barplot(
@@ -130,23 +162,23 @@ if __name__ == "__main__":
             palette="bright",
         )
         sns.despine()
-        plt.xticks(rotation=90)
-        plt.tight_layout()
-        plt.axhline(y=0, color="black", linewidth=0.5)
-        plt.ylabel("Duration (ms)")
-        plt.title("Average action duration for 1000 executions")
-        ax.grid(axis="y")
         for container in ax.containers:
             ax.bar_label(container, fmt="%.1f")
+        cleanup_graph(ax, filename="avg_action_duration",
+            title="Average action duration for 1000 executions", y_label="Duration (ms)")
 
     def avg_action_call_count(fig, ax):
         data = df.copy()
         data = data.groupby("action").sum()["count"]
-        # group all actions with less than 1% of the total count into a single "other" category
+        # group all actions with less than 1% of the total count or less than 10th category into a single "other" category
+        tenth = 0 if len(data) < 10 else data.nlargest(10).iloc[-1]
         data = pd.concat(
             [
-                data[data >= data.sum() * 0.01],
-                pd.Series(data[data < data.sum() * 0.01].sum(), index=["other"]),
+                data[(data >= data.sum() * 0.01) & (data > tenth)],
+                pd.Series(
+                    data[(data < data.sum() * 0.01) | (data <= tenth)].sum(),
+                    index=["other"],
+                ),
             ]
         )
         data = data[data >= data.sum() * 0.005] # hide anything < 0.5%
@@ -156,24 +188,34 @@ if __name__ == "__main__":
             labels=data.index,
             colors=sns.color_palette("bright"),
         )
-        plt.title("Action call count for one run of the tests")
+        cleanup_graph(ax, filename="avg_action_call_count",  legend=False,
+            title="Action call count for one run of the tests", no_line=True)
 
     # total time spent per action, as stacked bar chart, condensing produce/consume/execute_action
     def time_spent_per_action(fix, ax):
         # merge actions, consume and produce
         data = df.copy()
-        data["action"] = data["action"].str.split("/").str[0]
+        data["action"] = data["action"].apply(lambda x: x if "/" not in x else x.split("/")[0])
 
         # sum actions by their name for each file execution
         data = data.groupby(["execution", "mode", "file", "action", "file_id"]).sum()
         data = data.reset_index()
+
+        # find all actions below X biggest:
+        actions = (
+            data[["action", "total_duration"]]
+            .groupby("action")
+            .sum()
+            .sort_values("total_duration", ascending=False)
+            .index
+        )
+        smaller = actions[5:]
+        #  group all actions below 7 biggest into "other" category
+        data["action"] = data["action"].apply(lambda x: x if x not in smaller else "other")
+
         # average by file (avoids repetition from different iteration counts)
         data = data.groupby(["execution", "mode", "file", "action"]).mean()
         data = data.reset_index()
-
-        # actions to filter out, as they are too small to matter
-        other = ["is_overlapping_asrt", "lvars", "mem_constraints", "get_recovery_tactic", "copy"]
-        data = data[~data["action"].isin(other)]
 
         # get actions sorted by average duration
         actions = (
@@ -207,10 +249,8 @@ if __name__ == "__main__":
                     bottom=prev,
                 )
                 prev += subdata["total_duration"]
-        ax.grid(axis="y")
-        plt.ylabel("Total time spent (ms)")
-        plt.title("Shares of total time spent for one run of the tests")
-        plt.legend(legend)
+        cleanup_graph(ax, filename="time_spent_per_action", y_label="Total time spent (ms)",
+            title="Shares of total time spent for one run of the tests", legend=legend)
 
     # total time spent per action, as stacked bar chart, without condensing produce/consume/execute_action
     def time_spent_per_action_detailed(fix, ax):
@@ -219,6 +259,18 @@ if __name__ == "__main__":
         data["action"] = data["action"].apply(lambda x: "other" if not "/" in x else x)
         data = data.groupby(["execution", "mode", "file", "action", "file_id"]).sum()
         data = data.reset_index()
+
+        # find all actions below X biggest:
+        actions = (
+            data[["action", "total_duration"]]
+            .groupby("action")
+            .sum()
+            .sort_values("total_duration", ascending=False)
+            .index
+        )
+        smaller = actions[7:]
+        #  group all actions below 7 biggest into "other" category
+        data["action"] = data["action"].apply(lambda x: x if x not in smaller else "other")
 
         # average by file (avoids repetition from different iteration counts)
         data = data.groupby(["execution", "mode", "file", "action"]).mean()
@@ -279,12 +331,8 @@ if __name__ == "__main__":
                     bottom=prev,
                 )
                 prev += subdata["total_duration"]
-        ax.grid(axis="y")
-        box = ax.get_position()
-        ax.set_position([box.x0, box.y0, box.width * 0.7, box.height])
-        plt.ylabel("Total time spent (ms)")
-        plt.title("Detailed shares of total time spent for one run of the tests")
-        plt.legend(legend, loc="lower left", bbox_to_anchor=(1, 0))
+        cleanup_graph(ax, filename="time_spent_per_action_detailed", y_label="Total time spent (ms)",
+            title="Shares of total time spent for one run of the tests", legend=legend)
 
     views = [
         avg_action_duration,
@@ -294,6 +342,6 @@ if __name__ == "__main__":
     ]
 
     for view in views:
-        fig, ax = plt.subplots()
+        fig, ax = plt.subplots(figsize=(12, 6))
         view(fig, ax)
     plt.show()
