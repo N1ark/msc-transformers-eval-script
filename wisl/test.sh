@@ -88,15 +88,15 @@ if [ "$1" == "b" ] || [ "$1" == "a" ]; then
     baseState
     test wisl base
 fi
-if [ "$1" == "t" ] || [ "$1" == "a" ]; then
+if [ "$1" == "t" ] || [ "$1" == "a" ] || [ "$1" == "T" ]; then
     transformerState
     test instantiation tr
 fi
-if [ "$1" == "a" ] || [ "$1" == "aloc" ]; then
+if [ "$1" == "a" ] || [ "$1" == "aloc" ] || [ "$1" == "T" ]; then
     transformerALocState
     test instantiation tr-aloc
 fi
-if [ "$1" == "a" ]; then
+if [ "$1" == "a" ] || [ "$1" == "T" ]; then
     transformerSplitState
     test instantiation tr-split
 fi
