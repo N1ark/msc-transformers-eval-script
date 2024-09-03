@@ -137,16 +137,17 @@ if __name__ == "__main__":
             lgd = plt.legend(legend, loc="lower left", bbox_to_anchor=(1, 0))
         else:
             lgd = plt.legend(loc="lower left", bbox_to_anchor=(1, 0))
-        plt.xticks(rotation=90)
+        plt.xticks(rotation=0)
         if not no_line:
             plt.axhline(y=0, color="black", linewidth=0.5)
         plt.ylabel(y_label)
         plt.xlabel(x_label)
+        plt.gca().set_yticklabels([i.get_text().replace('−', '$-$') for i in ax.get_yticklabels()])
         if axis:
             ax.grid(axis=axis)
         if filename is not None:
             lgd = None if lgd is None else (lgd,)
-            fig.savefig(f"{filename}.svg", bbox_extra_artists=lgd, bbox_inches="tight")
+            fig.savefig(f"{filename}.pdf", bbox_extra_artists=lgd, bbox_inches="tight")
         if title is not None:
             plt.title(title)
 
@@ -165,7 +166,7 @@ if __name__ == "__main__":
         sns.despine()
         cleanup_graph(
             ax, legend=False, y_label="Relative difference (%)",
-            filename="show_file_relative_diffs", title="Relative differences in durations per file")
+            filename="file_relative_diffs", title="Relative differences in durations per file")
 
     def show_mode_relative_diffs(fig, ax):
         data = df[df["execution"] != "base"]
@@ -175,7 +176,7 @@ if __name__ == "__main__":
         )
         sns.despine()
         cleanup_graph(
-            ax, y_label="Relative difference (%)", filename="show_mode_relative_diffs",
+            ax, y_label="Relative difference (%)", filename="mode_relative_diffs",
             title="Relative differences in durations per mode")
 
     # plot the average duration per mode using barplots
@@ -185,7 +186,7 @@ if __name__ == "__main__":
             y="duration", x="mode", hue="execution", data=data, ax=ax, palette="bright"
         )
         sns.despine()
-        cleanup_graph(ax, y_label="Duration (s)", filename="show_avg_durations",
+        cleanup_graph(ax, y_label="Duration (s)", filename="avg_durations",
                         title="Average durations per mode")
 
     # plot the average duration per execution using barplots
@@ -204,7 +205,7 @@ if __name__ == "__main__":
             palette="bright",
         )
         sns.despine()
-        cleanup_graph(ax, y_label="Duration (s)", filename="show_avg_file_durations",
+        cleanup_graph(ax, y_label="Duration (s)", filename="avg_file_durations",
             title="Average durations per file")
 
     # plot the average relative difference per mode using barplots
@@ -219,7 +220,7 @@ if __name__ == "__main__":
         sns.despine()
         for container in ax.containers:
             ax.bar_label(container, fmt="%.2f%%")
-        cleanup_graph(ax, y_label="Relative difference (%)", filename="show_avg_mode_relative_diff",
+        cleanup_graph(ax, y_label="Relative difference (%)", filename="avg_mode_relative_diff",
             title="Average relative differences per mode")
 
     views = [
@@ -229,7 +230,7 @@ if __name__ == "__main__":
     ]
 
     for i, view in enumerate(views):
-        fig, ax = plt.subplots(figsize=(12, 6))
+        fig, ax = plt.subplots(figsize=(6, 6))
         view(fig, ax)
 
     plt.show()

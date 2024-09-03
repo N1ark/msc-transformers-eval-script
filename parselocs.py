@@ -69,6 +69,31 @@ if __name__ == "__main__":
     df.sort_values(by=["instantiation", "category", "filename"], inplace=True)
     df.to_csv("locs.csv", index=False)
 
+    def cleanup_graph(
+        ax,
+        *,
+        legend=None, filename=None, title=None, axis="y", x_label=None, y_label=None, no_line=False
+    ):
+        if legend is False:
+            lgd = None
+        elif legend is not None:
+            lgd = plt.legend(legend, loc="lower left", bbox_to_anchor=(1, 0))
+        else:
+            lgd = plt.legend(loc="lower left", bbox_to_anchor=(1, 0))
+        plt.xticks(rotation=0)
+        if not no_line:
+            plt.axhline(y=0, color="black", linewidth=0.5)
+        plt.ylabel(y_label)
+        plt.xlabel(x_label)
+        if axis:
+            ax.grid(axis=axis)
+        if filename is not None:
+            lgd = None if lgd is None else (lgd,)
+            fig.savefig(f"{filename}.pdf", bbox_extra_artists=lgd, bbox_inches="tight")
+        if title is not None:
+            plt.title(title)
+
+
     def show_locs(fig, ax):
         data = df.copy()
         data.drop("filename", axis=1, inplace=True)
@@ -118,16 +143,13 @@ if __name__ == "__main__":
                     bottom=prev,
                 )
                 prev += subdata["locs"]
-        ax.grid(axis="y")
-        plt.ylabel("LOCs")
-        plt.legend(legend, loc="lower left", bbox_to_anchor=(1, 0))
-        plt.title("LOCs per instantiation")
-        plt.tight_layout()
+        cleanup_graph(
+            ax, legend=legend, filename="locs", title="LOCs per instantiation", y_label="LOCs")
 
     views = [show_locs]
 
     for i, view in enumerate(views):
-        fig, ax = plt.subplots()
+        fig, ax = plt.subplots(figsize=(6, 6))
         view(fig, ax)
 
     plt.show()

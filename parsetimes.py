@@ -129,7 +129,7 @@ if __name__ == "__main__":
     def cleanup_graph(
         ax,
         *,
-        legend=None, filename=None, title=None, axis="y", x_label=None, y_label=None, no_line=False
+        legend=None, filename=None, title=None, axis="y", x_label=None, y_label=None, no_line=False, xticks=0
     ):
         if legend is False:
             lgd = None
@@ -137,7 +137,7 @@ if __name__ == "__main__":
             lgd = plt.legend(legend, loc="lower left", bbox_to_anchor=(1, 0))
         else:
             lgd = plt.legend(loc="lower left", bbox_to_anchor=(1, 0))
-        plt.xticks(rotation=90)
+        plt.xticks(rotation=xticks)
         if not no_line:
             plt.axhline(y=0, color="black", linewidth=0.5)
         plt.ylabel(y_label)
@@ -146,8 +146,8 @@ if __name__ == "__main__":
             ax.grid(axis=axis)
         if filename is not None:
             lgd = None if lgd is None else (lgd,)
-            fig.savefig(f"{filename}.svg", bbox_extra_artists=lgd, bbox_inches="tight")
-        if title is not None:
+            fig.savefig(f"{filename}.pdf", bbox_extra_artists=lgd, bbox_inches="tight")
+        if title is not  None:
             plt.title(title)
 
 
@@ -160,11 +160,10 @@ if __name__ == "__main__":
             data=data,
             ax=ax,
             palette="bright",
+            errorbar=None,
         )
         sns.despine()
-        for container in ax.containers:
-            ax.bar_label(container, fmt="%.1f")
-        cleanup_graph(ax, filename="avg_action_duration",
+        cleanup_graph(ax, filename="avg_action_duration", xticks=90,
             title="Average action duration for 1000 executions", y_label="Duration (ms)")
 
     def avg_action_call_count(fig, ax):
@@ -212,6 +211,7 @@ if __name__ == "__main__":
         smaller = actions[5:]
         #  group all actions below 7 biggest into "other" category
         data["action"] = data["action"].apply(lambda x: x if x not in smaller else "other")
+        data = data.groupby(["execution", "mode", "file", "action", "file_id"]).sum()
 
         # average by file (avoids repetition from different iteration counts)
         data = data.groupby(["execution", "mode", "file", "action"]).mean()
@@ -268,9 +268,10 @@ if __name__ == "__main__":
             .sort_values("total_duration", ascending=False)
             .index
         )
-        smaller = actions[7:]
+        smaller = actions[9:]
         #  group all actions below 7 biggest into "other" category
         data["action"] = data["action"].apply(lambda x: x if x not in smaller else "other")
+        data = data.groupby(["execution", "mode", "file", "action", "file_id"]).sum()
 
         # average by file (avoids repetition from different iteration counts)
         data = data.groupby(["execution", "mode", "file", "action"]).mean()
@@ -342,6 +343,6 @@ if __name__ == "__main__":
     ]
 
     for view in views:
-        fig, ax = plt.subplots(figsize=(12, 6))
+        fig, ax = plt.subplots(figsize=(6, 6))
         view(fig, ax)
     plt.show()
