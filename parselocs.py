@@ -10,12 +10,13 @@ import pandas as pd
 import seaborn as sns
 
 from matplotlib import font_manager
-font_path = '/Users/oscar/Library/Fonts/cmunrm.ttf'
+
+font_path = "/Users/oscar/Library/Fonts/cmunrm.ttf"
 font_manager.fontManager.addfont(font_path)
 prop = font_manager.FontProperties(fname=font_path)
 
-plt.rcParams['font.family'] = 'serif'
-plt.rcParams['font.serif'] = prop.get_name()
+plt.rcParams["font.family"] = "serif"
+plt.rcParams["font.serif"] = prop.get_name()
 
 ignored_files = [".DS_Store"]
 
@@ -72,7 +73,13 @@ if __name__ == "__main__":
     def cleanup_graph(
         ax,
         *,
-        legend=None, filename=None, title=None, axis="y", x_label=None, y_label=None, no_line=False
+        legend=None,
+        filename=None,
+        title=None,
+        axis="y",
+        x_label=None,
+        y_label=None,
+        no_line=False,
     ):
         if legend is False:
             lgd = None
@@ -93,7 +100,6 @@ if __name__ == "__main__":
         if title is not None:
             plt.title(title)
 
-
     def show_locs(fig, ax):
         data = df.copy()
         data.drop("filename", axis=1, inplace=True)
@@ -104,12 +110,17 @@ if __name__ == "__main__":
         categories = (
             data.groupby("category").sum().sort_values(by="locs", ascending=False).index
         )
+
+        # remove "transformers" from categoryies
+        categories = [cat for cat in categories if cat != "transformers (provided)"]
+        categories = categories + ["transformers (provided)"]
+
         colors = [
             # "#023EFF", <- used for transformers
             "#FF7C00",
             "#1AC938",
             # "#E8000B", <- used for removed
-            "#8B2BE2",
+            # "#8B2BE2", <- used for tailored
             "#9F4800",
             "#F14CC1",
             "#A3A3A3",
@@ -123,10 +134,12 @@ if __name__ == "__main__":
             subdata = subdata.groupby("instantiation").sum()
             subdata = subdata.reset_index()
             color = None
-            if cat == "transformers":
-                color = "#023EFF"
+            if cat == "transformers (provided)":
+                color = "#d7e7fa"
             elif cat == "removed":
                 color = "#E8000B"
+            elif cat == "tailored":
+                color = "#8B2BE2"
             else:
                 color = colors.pop(0)
             if prev is None:
@@ -144,7 +157,12 @@ if __name__ == "__main__":
                 )
                 prev += subdata["locs"]
         cleanup_graph(
-            ax, legend=legend, filename="locs", title="LOCs per instantiation", y_label="LOCs")
+            ax,
+            legend=legend,
+            filename="locs",
+            title="LOCs per instantiation",
+            y_label="LOCs",
+        )
 
     views = [show_locs]
 
