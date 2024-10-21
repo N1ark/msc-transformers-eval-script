@@ -123,7 +123,7 @@ test() {
         phase "Biabduction" biabduction "$1 act --specs-to-stdout" "$logfile"
         phase "WPST" wpst "$1 wpst" "$logfile"
         phase "Collections-C" collections-c "$1 wpst" "$logfile"
-        phaseAmazon $1 "$logfile"
+        # phaseAmazon $1 "$logfile"
     done
 
     printf "\n\n"

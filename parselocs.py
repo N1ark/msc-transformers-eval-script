@@ -49,7 +49,7 @@ if __name__ == "__main__":
     entries: List[Tuple[str, str, str, int]] = []
     # iterate over top folders inside directory, call parse_folder
     for path in Path(sys.argv[1]).iterdir():
-        if path.is_dir():
+        if path.is_dir() and (path.name.startswith("gillian") or path.name == ("tr")):
             print("Parsing", path)
             e = parse_folder(path)
             entries.extend(
@@ -131,7 +131,10 @@ if __name__ == "__main__":
         prev = None
         for cat in categories:
             subdata = data[data["category"] == cat]
-            subdata = subdata.groupby("instantiation").sum()
+            # group by, sorting desc
+            subdata = subdata.groupby("instantiation").sum().sort_values(
+                by="instantiation", ascending=False
+            )
             subdata = subdata.reset_index()
             color = None
             if cat == "transformers (provided)":
@@ -144,16 +147,16 @@ if __name__ == "__main__":
                 color = colors.pop(0)
             if prev is None:
                 prev = subdata["locs"]
-                plt.bar(
+                plt.barh(
                     subdata["instantiation"], subdata["locs"], label=cat, color=color
                 )
             else:
-                plt.bar(
+                plt.barh(
                     subdata["instantiation"],
                     subdata["locs"],
                     label=cat,
                     color=color,
-                    bottom=prev,
+                    left=prev,
                 )
                 prev += subdata["locs"]
         cleanup_graph(
@@ -161,13 +164,13 @@ if __name__ == "__main__":
             legend=legend,
             filename="locs",
             title="LOCs per instantiation",
-            y_label="LOCs",
+            x_label="LOCs",
         )
 
     views = [show_locs]
 
     for i, view in enumerate(views):
-        fig, ax = plt.subplots(figsize=(6, 6))
+        fig, ax = plt.subplots(figsize=(6, 2))
         view(fig, ax)
 
     plt.show()
