@@ -12,12 +12,13 @@ import pandas as pd
 import seaborn as sns
 
 from matplotlib import font_manager
-font_path = '/Users/oscar/Library/Fonts/cmunrm.ttf'
+
+font_path = "/Users/oscar/Library/Fonts/cmunrm.ttf"
 font_manager.fontManager.addfont(font_path)
 prop = font_manager.FontProperties(fname=font_path)
 
-plt.rcParams['font.family'] = 'serif'
-plt.rcParams['font.serif'] = prop.get_name()
+plt.rcParams["font.family"] = "serif"
+plt.rcParams["font.serif"] = prop.get_name()
 
 
 # execute_action/Alloc: 0.3ms (427)
@@ -74,13 +75,11 @@ if __name__ == "__main__":
                 for mode, file, action, dur, count, file_id in durations
             ]
         )
-        print(f"Parsed {file} ({execution})")
+        print(f"Parsed {file} ({execution}): found {len(durations)} entries")
 
     if mode_filter:
         entries = [
-            e
-            for e in entries
-            if e[1].lower().find(mode_filter.lower()) != -1
+            e for e in entries if e[1].lower().find(mode_filter.lower()) != -1
         ]
     print(f"Filtered to {len(entries)} entries with mode {mode_filter}")
 
@@ -88,7 +87,9 @@ if __name__ == "__main__":
     keys = set([(e[0], e[1], e[2]) for e in entries])
     actions = set([e[3] for e in entries])
     entries_set = set([(e[0], e[1], e[2], e[3]) for e in entries])
-    print(f"Found {len(keys)} keys and {len(actions)} actions in {len(entries_set)} groups")
+    print(
+        f"Found {len(keys)} keys and {len(actions)} actions in {len(entries_set)} groups"
+    )
     for key in keys:
         for action in actions:
             if not any(
@@ -129,7 +130,14 @@ if __name__ == "__main__":
     def cleanup_graph(
         ax,
         *,
-        legend=None, filename=None, title=None, axis="y", x_label=None, y_label=None, no_line=False, xticks=0
+        legend=None,
+        filename=None,
+        title=None,
+        axis="y",
+        x_label=None,
+        y_label=None,
+        no_line=False,
+        xticks=0,
     ):
         if legend is False:
             lgd = None
@@ -146,10 +154,11 @@ if __name__ == "__main__":
             ax.grid(axis=axis)
         if filename is not None:
             lgd = None if lgd is None else (lgd,)
-            fig.savefig(f"{filename}.pdf", bbox_extra_artists=lgd, bbox_inches="tight")
-        if title is not  None:
+            fig.savefig(
+                f"{filename}.pdf", bbox_extra_artists=lgd, bbox_inches="tight"
+            )
+        if title is not None:
             plt.title(title)
-
 
     def avg_action_duration(fig, ax):
         data = df.copy()
@@ -163,8 +172,13 @@ if __name__ == "__main__":
             errorbar=None,
         )
         sns.despine()
-        cleanup_graph(ax, filename="avg_action_duration", xticks=90,
-            title="Average action duration for 1000 executions", y_label="Duration (ms)")
+        cleanup_graph(
+            ax,
+            filename="avg_action_duration",
+            xticks=90,
+            title="Average action duration for 1000 executions",
+            y_label="Duration (ms)",
+        )
 
     def avg_action_call_count(fig, ax):
         data = df.copy()
@@ -180,24 +194,33 @@ if __name__ == "__main__":
                 ),
             ]
         )
-        data = data[data >= data.sum() * 0.005] # hide anything < 0.5%
+        data = data[data >= data.sum() * 0.005]  # hide anything < 0.5%
         data = data.sort_values(ascending=False)
         plt.pie(
             data,
             labels=data.index,
             colors=sns.color_palette("bright"),
         )
-        cleanup_graph(ax, filename="avg_action_call_count",  legend=False,
-            title="Action call count for one run of the tests", no_line=True)
+        cleanup_graph(
+            ax,
+            filename="avg_action_call_count",
+            legend=False,
+            title="Action call count for one run of the tests",
+            no_line=True,
+        )
 
     # total time spent per action, as stacked bar chart, condensing produce/consume/execute_action
     def time_spent_per_action(fix, ax):
         # merge actions, consume and produce
         data = df.copy()
-        data["action"] = data["action"].apply(lambda x: x if "/" not in x else x.split("/")[0])
+        data["action"] = data["action"].apply(
+            lambda x: x if "/" not in x else x.split("/")[0]
+        )
 
         # sum actions by their name for each file execution
-        data = data.groupby(["execution", "mode", "file", "action", "file_id"]).sum()
+        data = data.groupby(
+            ["execution", "mode", "file", "action", "file_id"]
+        ).sum()
         data = data.reset_index()
 
         # find all actions below X biggest:
@@ -210,8 +233,12 @@ if __name__ == "__main__":
         )
         smaller = actions[5:]
         #  group all actions below 7 biggest into "other" category
-        data["action"] = data["action"].apply(lambda x: x if x not in smaller else "other")
-        data = data.groupby(["execution", "mode", "file", "action", "file_id"]).sum()
+        data["action"] = data["action"].apply(
+            lambda x: x if x not in smaller else "other"
+        )
+        data = data.groupby(
+            ["execution", "mode", "file", "action", "file_id"]
+        ).sum()
 
         # average by file (avoids repetition from different iteration counts)
         data = data.groupby(["execution", "mode", "file", "action"]).mean()
@@ -229,7 +256,9 @@ if __name__ == "__main__":
         legend = actions
         prev = None
         for action in actions:
-            subdata = data[data["action"] == action][["execution", "total_duration"]]
+            subdata = data[data["action"] == action][
+                ["execution", "total_duration"]
+            ]
             subdata = subdata.groupby("execution").mean()
             subdata = subdata.reset_index()
             if prev is None:
@@ -249,15 +278,24 @@ if __name__ == "__main__":
                     bottom=prev,
                 )
                 prev += subdata["total_duration"]
-        cleanup_graph(ax, filename="time_spent_per_action", y_label="Total time spent (ms)",
-            title="Shares of total time spent for one run of the tests", legend=legend)
+        cleanup_graph(
+            ax,
+            filename="time_spent_per_action",
+            y_label="Total time spent (ms)",
+            title="Shares of total time spent for one run of the tests",
+            legend=legend,
+        )
 
     # total time spent per action, as stacked bar chart, without condensing produce/consume/execute_action
     def time_spent_per_action_detailed(fix, ax):
         # merge actions, consume and produce
         data = df.copy()
-        data["action"] = data["action"].apply(lambda x: "other" if not "/" in x else x)
-        data = data.groupby(["execution", "mode", "file", "action", "file_id"]).sum()
+        data["action"] = data["action"].apply(
+            lambda x: "other" if not "/" in x else x
+        )
+        data = data.groupby(
+            ["execution", "mode", "file", "action", "file_id"]
+        ).sum()
         data = data.reset_index()
 
         # find all actions below X biggest:
@@ -270,8 +308,12 @@ if __name__ == "__main__":
         )
         smaller = actions[9:]
         #  group all actions below 7 biggest into "other" category
-        data["action"] = data["action"].apply(lambda x: x if x not in smaller else "other")
-        data = data.groupby(["execution", "mode", "file", "action", "file_id"]).sum()
+        data["action"] = data["action"].apply(
+            lambda x: x if x not in smaller else "other"
+        )
+        data = data.groupby(
+            ["execution", "mode", "file", "action", "file_id"]
+        ).sum()
 
         # average by file (avoids repetition from different iteration counts)
         data = data.groupby(["execution", "mode", "file", "action"]).mean()
@@ -295,13 +337,17 @@ if __name__ == "__main__":
         prod_actions = len([a for a in actions if a.startswith("prod")])
         ea_actions = len([a for a in actions if a.startswith("ea")])
         cons_colors = re_order_palette(sns.color_palette("Blues", cons_actions))
-        prod_colors = re_order_palette(sns.color_palette("Greens", prod_actions))
+        prod_colors = re_order_palette(
+            sns.color_palette("Greens", prod_actions)
+        )
         ea_colors = re_order_palette(sns.color_palette("Reds", ea_actions))
 
         legend = actions
         prev = None
         for action in actions:
-            subdata = data[data["action"] == action][["execution", "total_duration"]]
+            subdata = data[data["action"] == action][
+                ["execution", "total_duration"]
+            ]
             subdata = subdata.groupby("execution").mean()
             subdata = subdata.reset_index()
             color = None
@@ -332,8 +378,13 @@ if __name__ == "__main__":
                     bottom=prev,
                 )
                 prev += subdata["total_duration"]
-        cleanup_graph(ax, filename="time_spent_per_action_detailed", y_label="Total time spent (ms)",
-            title="Shares of total time spent for one run of the tests", legend=legend)
+        cleanup_graph(
+            ax,
+            filename="time_spent_per_action_detailed",
+            y_label="Total time spent (ms)",
+            title="Shares of total time spent for one run of the tests",
+            legend=legend,
+        )
 
     views = [
         avg_action_duration,

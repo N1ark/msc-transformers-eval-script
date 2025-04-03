@@ -11,12 +11,13 @@ import seaborn as sns
 
 
 from matplotlib import font_manager
-font_path = '/Users/oscar/Library/Fonts/cmunrm.ttf'
+
+font_path = "/Users/oscar/Library/Fonts/cmunrm.ttf"
 font_manager.fontManager.addfont(font_path)
 prop = font_manager.FontProperties(fname=font_path)
 
-plt.rcParams['font.family'] = 'serif'
-plt.rcParams['font.serif'] = prop.get_name()
+plt.rcParams["font.family"] = "serif"
+plt.rcParams["font.serif"] = prop.get_name()
 
 biabduct_regex = r"\w+, \d+, \d+, \d+, \d+, ([\d.]+)"
 cat_regex = r"^[A-Za-z]+"
@@ -80,7 +81,7 @@ if __name__ == "__main__":
     log_files = []
     for root, dirs, files in os.walk(dest):
         for file in files:
-            if file.endswith(".log"):
+            if file.endswith(".log") and not file.startswith("!"):
                 log_files.append(os.path.join(root, file))
     log_files.sort()
 
@@ -92,44 +93,98 @@ if __name__ == "__main__":
         execution = file.split("/")[-1]
         execution = execution.split(".")[0]
         execution = execution.replace("_", "")
-        entries.extend([(execution, mode, file, dur) for mode, file, dur in durations])
+        entries.extend(
+            [(execution, mode, file, dur) for mode, file, dur in durations]
+        )
         print(f"Parsed {file} ({execution})")
 
-    df = pd.DataFrame(entries, columns=["execution", "mode", "filename", "duration"])
+    df = pd.DataFrame(
+        entries, columns=["execution", "mode", "filename", "duration"]
+    )
 
     if mode_filter:
-        df = df[df["mode"].str.contains(mode_filter, case=False)]
+        mode_filter = mode_filter.split(",")
+        df = df[df["mode"].str.contains("|".join(mode_filter), case=False)]
 
     # update "filename" to be "mode/filename"
     df["filename"] = df["mode"] + "/" + df["filename"]
 
+    base_exists = df[df["execution"] == "base"].shape[0] > 0
     # calculate relative differences in durations, compared to the average of the base executions for that file
-    df_base = (
-        df[df["execution"] == "base"]
-        .groupby("filename")["duration"]
-        .mean()
-        .reset_index()
-    )
-    df_base.columns = ["filename", "base"]
-    df = df.merge(df_base, on="filename", how="left")
-    df["relative"] = (df["base"] - df["duration"]) / df["base"] * 100
-    df.drop("base", axis=1, inplace=True)
+    if base_exists:
+        df_base = (
+            df[df["execution"] == "base"]
+            .groupby("filename")["duration"]
+            .mean()
+            .reset_index()
+        )
+        df_base.columns = ["filename", "base"]
+        df = df.merge(df_base, on="filename", how="left")
+        df["relative"] = (df["base"] - df["duration"]) / df["base"] * 100
+        df.drop("base", axis=1, inplace=True)
+    else:
+        df["relative"] = 0.0
     df.sort_values(["execution", "mode", "filename"], inplace=True)
 
     # save base
-    df.to_csv(dest + "file_durations.csv", index=False, float_format='%.15f')
+    df.to_csv(dest + "file_durations.csv", index=False, float_format="%.15f")
+
+    # save avg duration by file per mode
+    df_pf = df.copy()
+    df_pf = (
+        df_pf.groupby(["execution", "mode", "filename"])["duration"]
+        .mean()
+        .reset_index()
+    )
+    df_pf.to_csv(
+        dest + "avg_file_durations.csv", index=False, float_format="%.15f"
+    )
 
     # save summed by mode
     df_mode = df.groupby(["execution", "mode"])["duration"].mean().reset_index()
-    df_mode.to_csv(dest + "mode_durations.csv", index=False, float_format='%.15f')
+    df_mode.to_csv(
+        dest + "mode_durations.csv", index=False, float_format="%.15f"
+    )
+
+    # calculate relative differences in durations, compared to the average of the base executions for that file
+    nosynt_exists = df_mode[df_mode["execution"] == "tr-nosynt"].shape[0] > 0
+    if nosynt_exists:
+        df_base = (
+            df_mode[df_mode["execution"] == "tr-nosynt"]
+            .copy()
+            .drop("execution", axis=1)
+        )
+        df_base.columns = ["mode", "base"]
+        df_copy = df_mode.copy()
+        df_copy = df_copy.merge(df_base, on="mode", how="left")
+        df_copy["duration"] = (
+            (df_copy["base"] - df_copy["duration"]) / df_copy["base"] * 100
+        )
+        df_copy.drop("base", axis=1, inplace=True)
+
+        # save for latex gnuplot use
+        # we want column titles to be the value in execution, and each row to be a mode
+        df_pivot = df_copy.pivot(
+            index="mode", columns="execution", values="duration"
+        )
+
+        # re-order columns: tr-nosynt, tr, tr-splitnosynt, tr-split
+        df_pivot = df_pivot[["tr-nosynt", "tr", "tr-splitnosynt", "tr-split"]]
+
+        df_pivot.to_csv(dest + "mode_durations_pivot.csv", float_format="%.15f")
 
     print("Wrote: ", len(df), "entries")
-
 
     def cleanup_graph(
         ax,
         *,
-        legend=None, filename=None, title=None, axis="y", x_label=None, y_label=None, no_line=False
+        legend=None,
+        filename=None,
+        title=None,
+        axis="y",
+        x_label=None,
+        y_label=None,
+        no_line=False,
     ):
         if legend is False:
             lgd = None
@@ -142,19 +197,25 @@ if __name__ == "__main__":
             plt.axhline(y=0, color="black", linewidth=0.5)
         plt.ylabel(y_label)
         plt.xlabel(x_label)
-        plt.gca().set_yticklabels([i.get_text().replace('−', '$-$') for i in ax.get_yticklabels()])
+        plt.gca().set_yticklabels(
+            [i.get_text().replace("−", "$-$") for i in ax.get_yticklabels()]
+        )
         if axis:
             ax.grid(axis=axis)
         if filename is not None:
             lgd = None if lgd is None else (lgd,)
-            fig.savefig(f"{filename}.pdf", bbox_extra_artists=lgd, bbox_inches="tight")
+            fig.savefig(
+                f"{filename}.pdf", bbox_extra_artists=lgd, bbox_inches="tight"
+            )
         if title is not None:
             plt.title(title)
 
     # plot the relative differences in durations, per mode+category, using boxplots
     def show_file_relative_diffs(fig, ax):
         data = df[df["execution"] != "base"]
-        colors = sns.color_palette("bright", n_colors=len(data["mode"].unique()) + 1)[1:]
+        colors = sns.color_palette(
+            "bright", n_colors=len(data["mode"].unique()) + 1
+        )[1:]
         sns.boxplot(
             y="relative",
             x="filename",
@@ -165,29 +226,54 @@ if __name__ == "__main__":
         )
         sns.despine()
         cleanup_graph(
-            ax, legend=False, y_label="Relative difference (%)",
-            filename="file_relative_diffs", title="Relative differences in durations per file")
+            ax,
+            legend=False,
+            y_label="Relative difference (%)",
+            filename="file_relative_diffs",
+            title="Relative differences in durations per file",
+        )
 
     def show_mode_relative_diffs(fig, ax):
         data = df[df["execution"] != "base"]
-        colors = sns.color_palette("bright", n_colors=len(data["execution"].unique()) + 1)[1:]
+        colors = sns.color_palette(
+            "bright", n_colors=len(data["execution"].unique()) + 1
+        )[1:]
         sns.boxplot(
-            y="relative", x="mode", hue="execution", data=data, ax=ax, palette=colors
+            y="relative",
+            x="mode",
+            hue="execution",
+            data=data,
+            ax=ax,
+            palette=colors,
         )
         sns.despine()
         cleanup_graph(
-            ax, y_label="Relative difference (%)", filename="mode_relative_diffs",
-            title="Relative differences in durations per mode")
+            ax,
+            y_label="Relative difference (%)",
+            filename="mode_relative_diffs",
+            title="Relative differences in durations per mode",
+        )
 
     # plot the average duration per mode using barplots
     def show_avg_durations(fig, ax):
-        data = df.groupby(["execution", "mode"])["duration"].mean().reset_index()
+        data = (
+            df.groupby(["execution", "mode"])["duration"].mean().reset_index()
+        )
         sns.barplot(
-            y="duration", x="mode", hue="execution", data=data, ax=ax, palette="bright"
+            y="duration",
+            x="mode",
+            hue="execution",
+            data=data,
+            ax=ax,
+            palette="bright",
         )
         sns.despine()
-        cleanup_graph(ax, y_label="Duration (s)", filename="avg_durations",
-                        title="Average durations per mode")
+        cleanup_graph(
+            ax,
+            y_label="Duration (s)",
+            filename="avg_durations",
+            title="Average durations per mode",
+        )
 
     # plot the average duration per execution using barplots
     def show_avg_file_durations(fig, ax):
@@ -205,28 +291,48 @@ if __name__ == "__main__":
             palette="bright",
         )
         sns.despine()
-        cleanup_graph(ax, y_label="Duration (s)", filename="avg_file_durations",
-            title="Average durations per file")
+        cleanup_graph(
+            ax,
+            y_label="Duration (s)",
+            filename="avg_file_durations",
+            title="Average durations per file",
+        )
 
     # plot the average relative difference per mode using barplots
     def show_avg_mode_relative_diff(fig, ax):
         data = df[df["execution"] != "base"]
-        data = data.groupby(["execution", "mode"])["relative"].mean().reset_index()
-        colors = sns.color_palette("bright", n_colors=len(data["execution"].unique()) + 1)[1:]
+        data = (
+            data.groupby(["execution", "mode"])["relative"].mean().reset_index()
+        )
+        colors = sns.color_palette(
+            "bright", n_colors=len(data["execution"].unique()) + 1
+        )[1:]
         g = sns.barplot(
-            y="relative", x="mode", hue="execution", data=data, ax=ax, palette=colors,
+            y="relative",
+            x="mode",
+            hue="execution",
+            data=data,
+            ax=ax,
+            palette=colors,
         )
         g.legend(loc=3)
         sns.despine()
         for container in ax.containers:
             ax.bar_label(container, fmt="%.2f%%")
-        cleanup_graph(ax, y_label="Relative difference (%)", filename="avg_mode_relative_diff",
-            title="Average relative differences per mode")
+        cleanup_graph(
+            ax,
+            y_label="Relative difference (%)",
+            filename="avg_mode_relative_diff",
+            title="Average relative differences per mode",
+        )
 
     views = [
-        show_mode_relative_diffs,
+        *(
+            [show_mode_relative_diffs, show_avg_mode_relative_diff]
+            if base_exists
+            else []
+        ),
         show_avg_durations,
-        show_avg_mode_relative_diff,
     ]
 
     for i, view in enumerate(views):
