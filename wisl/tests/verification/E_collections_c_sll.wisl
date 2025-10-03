@@ -1,0 +1,354 @@
+// ========== Exercise E: Collections-C SLL Library ==========
+//
+// Let's now verify algorithms based on real-world data structure. In this
+// exercise, we will explore some singly-linked list algorithms from the
+// Collections-C library (https://github.com/srdja/Collections-C), ported from C
+// to WISL.
+//
+// The Collections-C (dubbed cc for short) singly-linked list
+// data structure is defined using a struct as follows:
+//
+//   typedef struct snode_s {
+//     void *data;
+//     struct snode_s *next;
+//   } SNode;
+//
+//   struct cc_slist_s {
+//     size_t size;
+//     SNode *head;
+//     SNode *tail;
+//     ...
+//   };
+//
+// Here, SNode is the typical singly-linked list data structure, and slist_s is
+// a wrapper around the entire linked list that also includes the pointer to the
+// tail of the list and the overall size of the linked list.
+//
+// Note that, in Collections-C, some functions like get_node_at return a status
+// depicting various kinds of errors that could occur in the function.
+// We represent this as an integer from 0 to 9 mapping this enum:
+//  enum cc_stat {
+//      CC_OK                   = 0,
+//      CC_ERR_ALLOC            = 1,
+//      CC_ERR_INVALID_CAPACITY = 2,
+//      CC_ERR_INVALID_RANGE    = 3,
+//      CC_ERR_MAX_CAPACITY     = 4,
+//      CC_ERR_KEY_NOT_FOUND    = 6,
+//      CC_ERR_VALUE_NOT_FOUND  = 7,
+//      CC_ERR_OUT_OF_RANGE     = 8,
+//      CC_ITER_END             = 9,
+//  };
+//
+// In WISL, you are always guaranteed a memory allocation, so when porting these
+// functions, we never return CC_ERR_ALLOC.
+//
+// Note that you might need the conditional tactic for get_node_at and
+// cc_slist_contains:
+//
+//   [[ if (condition) {tactics} else {tactics} ]]
+//
+// The solutions assume the exercises 1 and 2 are done in auto mode,
+// while 3 and 4 are done in manual.
+//#region  === DON'T EDIT THIS ===
+
+
+// We have our sll and lseg predicates as usual. Note that unlike the sll and
+// lseg predicates seen in previous, exercises, we have an additional parameter
+// delta, which denotes the list of pointer addresses composing the linked list.
+// As we will see, this is useful for verifying get_node_at, which returns the
+// *address* of the i-th node of the list. For lseg we made that (x != y) assertion
+// explicit to help Gillian in the branching process.
+
+predicate sll(+x, alpha, delta) {
+    // empty
+    (x == null) * (alpha == nil) * (delta == nil);
+    // non-empty
+    (x -b> #v, #z) * sll(#z, #beta, #gamma) * (alpha == #v::#beta) *
+    (delta == x::#gamma)
+}
+
+predicate lseg(+x, +y, alpha, delta) {
+  (x == y) * (alpha == nil) * (delta == nil);
+
+  (x -b> #v, #z) * (x != y) * lseg(#z, y, #beta, #gamma) *
+  (alpha == #v::#beta) * (delta == x::#gamma)
+}
+
+// We also have the cc_sll_ht predicate, which is the wrapper for the cc_slist_s
+// struct. Note that in the non-empty case, we have the lseg predicate, which
+// describes the entire list except the last node, and then we have the sll
+// predicate, which describes the last node.
+
+predicate nounfold cc_sll_ht(+x, h, t, alpha, delta) {
+  // Full cc_slist_s object: length, head, tail
+  (x -b> 0, h, t) *
+  (alpha == []) * (delta == []) *
+  (h == null) * (t == null);
+
+  (x -b> #l, #h, #t) *
+  (h == #h) * (t == #t) *
+  lseg(#h, #t, #beta, #gamma) *
+  sll(#t, [ #last ], [ #t ]) *
+  (alpha == #beta @ [ #last ]) *
+  (delta == #gamma @ [ #t ]) *
+  (#l == (len #beta) + 1)
+}
+
+// Finally, we have a top-level predicate cc_sll that existentially quantfies
+// the head and tail pointers.
+
+predicate cc_sll(+x, alpha, delta) {
+  cc_sll_ht(x, #h, #t, alpha, delta)
+}
+
+// For contains, we have the list_count predicate that states:
+// For a list vs and an element k, element k appears n times in the list.
+
+predicate list_count(+vs, +k, n : Int) {
+  (vs == []) * (n == 0);
+  (vs == k :: #vss) * list_count(#vss, k, #m) * (n == #m + 1);
+  (vs == #v :: #vss) * (#v != k) * list_count(#vss, k, n)
+}
+
+// For list_get, to model the semantics of the collections-C get_node_at function,
+// predicate cc_get is made.
+// It states that, for a pointer v and its repective lists vs and xs, index i, return value r,
+// we have the following cases:
+// 1. i is beyond the list, so we return nothing with status CC_ERR_OUT_OF_RANGE.
+// 2. Our list is a single node and i == 0, so we just return the head (and prev is null)
+// 3. We have our usual list from cc_sll, and i == 0, so we return the head.
+// 4. We have a broken up list, (vs == vs1 @ [ val ] @ vs2 @ [ last ] ) and i is related
+// by len(vs1) == i - 1.
+//
+// The reason we have this separation is due to the fact that we want to keep the information
+// of the head of the tail always, so we must provide branching cases for this. Also,
+// lseg does not allow us to represent the previous as null, so we must account this in a
+// separate case.
+
+predicate nounfold cc_get(+v, +i : Int, +r, vs, xs) {
+  cc_sll(v, vs, xs) * (i >= len(vs)) * (r -b> 8, null, null);
+
+  (i == 0) * (v -b> 1, #h, #h) * (#h -b> #val, null) * (r -b> 0, null, #h) *
+  (vs == [#val]) * (xs == [#h]);
+
+  (i == 0) * (v -b> #l, #h, #t) * (#h -b> #val, #node) * (#h != #t) *
+  lseg(#node, #t, #beta, #gamma) * sll(#t, [#last], [ #t ]) *
+  (vs == #val :: #beta @ [ #last ]) * (xs == #h :: #gamma @ [ #t ]) *
+  (r -b> 0, null, #h);
+
+  (r -b> 0, #prev, #node) * (v -b> #l, #h, #t) * lseg(#h, #prev, #vs1, #xs1) *
+  (#prev -b> #val, #node) * lseg(#node, #t, #vs2, #xs2) *
+  sll(#t, [#last], [ #t ]) * (vs == #vs1 @ [ #val ] @ #vs2 @ [ #last ]) *
+  (xs == #xs1 @ [ #prev ] @ #xs2 @ [ #t ]) * (i == len(#vs1) - 1)
+}
+
+lemma lseg_to_sll {
+  statement:
+    forall x, alpha.
+      lseg(x, null, alpha, #delta) |- sll(x, alpha, #delta)
+}
+
+lemma concat_lseg_sll {
+  statement:
+    forall x, y, alpha, beta, delta, gamma.
+      lseg(x, y, alpha, delta) * sll(y, beta, gamma)
+        |- sll(x, alpha @ beta, delta @ gamma)
+}
+
+lemma sll_split_last {
+  statement:
+    forall x, alpha, last, delta, lastptr.
+      sll(x, alpha@[last], delta@[lastptr])
+        |- lseg(x, lastptr, alpha, delta) * sll(lastptr, [last], [lastptr])
+}
+
+lemma lseg_append {
+  statement:
+    forall x, y, alpha, yval, ynext, delta.
+      lseg(x, y, alpha, delta) * (y -b> yval, ynext)
+        |- lseg(x, ynext, alpha @ [ yval ], delta @ [y])
+}
+
+lemma list_count_create {
+  statement:
+    forall v, vs, xs, k.
+      sll(v, vs, xs) |- sll(v, vs, xs) * list_count(vs, k, #n)
+}
+
+lemma list_count_append_true {
+  statement:
+    forall vs, k, n, v.
+      list_count(vs, k, n) * (k == v) |- list_count(vs @ [v], k, n + 1)
+}
+
+lemma list_count_append_false {
+  statement:
+    forall vs, k, n, v.
+      list_count(vs, k, n) * (k != v) |- list_count(vs @ [v], k, n)
+}
+
+//#endregion  === EDIT BELOW HERE ===
+
+// 1. Prepending a value to the front of the list (EASY)
+{ (v == #v) * (x == #x) * cc_sll(#v, #vs, #xs) }
+function cc_slist_add_first(v, x) {
+  node := new(2);
+  [node] := x;
+  size := [v];
+  if (size == 0) {
+    [v + 1] := node;
+    [v + 2] := node
+  } else {
+    head := [v + 1];
+    [[ assert {bind: #tail, #last} (v -b> size, head, #tail) *
+     sll(#tail, [ #last ], [ #tail ])]];
+    [node + 1] := head;
+    [v + 1] := node
+  };
+  [v] := size + 1;
+  return v
+}
+{ cc_sll(ret, #x::#vs, #nxs) }
+
+// 2. Appending a value to the element (EASY)
+{ (v == #v) * cc_sll(#v, #vs, #xs) * (x == #x) }
+function cc_slist_add_last(v, x) {
+  node := new(2);
+  [node] := x;
+  size := [v];
+  if (size == 0) {
+    [v + 1] := node;
+    [v + 2] := node;
+  } else {
+    [[ assert {bind: #l, #h, #t, #beta, #last, #gamma}
+     (#v -b> #l, #h, #t) * lseg(#h, #t, #beta, #gamma) *
+     sll(#t, [ #last ], [ #t ]) ]];
+    tail := [v + 2];
+    [tail + 1] := node;
+    [[ apply lseg_append(#h, #t, #beta, #last, node, #gamma) ]];
+    [v + 2] := node
+  };
+  [v] := size + 1;
+  return v
+}
+{ cc_sll(ret, #vs @ [ #x ], #nxs) }
+
+// 3. Getting the i-th node of linked list (HARD)
+{ (v == #v) * (i == #i) * cc_sll(#v, #vs, #xs) * (0 <= #i) }
+function get_node_at(v, i) {
+  [[ unfold cc_sll_ht(#v, #h, #t, #vs, #xs)]];
+  size := [v];
+  r := new(3);
+  if (i >= size) {
+    [r] := 8;
+    [[ if (size == 0) {
+      fold cc_sll_ht(#v, null, null, [], [])
+    } else {
+      assert (#v -b> size, #h, #t);
+      fold cc_sll_ht(#v, #h, #t, #vs, #xs)
+    }]]
+  } else {
+    head := [v + 1];
+    tail := [v + 2];
+    [[ assert {bind: #beta, #gamma, #last} lseg(head, tail, #beta, #gamma) *
+      (#vs == #beta @ [#last]) ]];
+    [[ unfold lseg(head, tail, #beta, #gamma) ]];
+    if (i == 0) {
+      [[ if (head == tail) {
+        unfold sll(tail, [#last], [tail]);
+        assert {bind: #l, #p} (tail -b> #l, #p);
+        unfold sll(#p, [], [])
+      } else {}]];
+      r := new(3);
+      [r] := 0;
+      [r + 1] := null;
+      [r + 2] := head
+    } else {
+      prev := head;
+      node := [head + 1];
+      j := 1;
+      [[ fold lseg(head, prev, [], []) ]];
+      [[ assert (#beta == #val2 :: #vss) ]];
+      [[ assert (#gamma == #ptr :: #xss) ]];
+      [[ apply concat_lseg_sll(node, tail, #vss, [#last], #xss, [tail]) ]];
+      [[ invariant {bind: prev, node, #val, j, #start, #end, #startp, #endp}
+          (i == #i) * (prev -b> #val, node) *
+          lseg(head, prev, #start, #startp) * sll(node, #end, #endp) *
+          (#vs == #start @ [#val] @ #end) * (#xs == #startp @ [prev] @ #endp) *
+          (i < size) * ((j - 1) < i) *
+          (size == j + len(#end))
+        ]];
+      while (j < i) {
+        [[ unfold sll(node, #end, #endp) ]];
+        [[ apply lseg_append(head, prev, #start, #val, node, #startp) ]];
+        prev := node;
+        node := [node + 1];
+        j := j + 1
+      };
+      r := new(3);
+      [r] := 0;
+      [r + 1] := prev;
+      [r + 2] := node;
+      [[ assert {bind: #end, #endp} sll(node, #end, #endp) ]];
+      [[ assert {bind: #start, #startp} lseg(head, prev, #start, #startp) ]];
+      [[ unfold sll(node, #end, #endp)]];
+      [[ fold sll(node, #end, #endp)]];
+      [[ assert {bind: #smth} (#end == #smth @ [#last]) ]];
+      [[ assert {bind: #smthp} (#endp == #smthp @ [tail]) ]];
+      [[ apply sll_split_last(node, #smth, #last, #smthp, tail) ]]
+    }
+  };
+  [[ fold cc_get(#v, i, r, #vs, #xs) ]];
+  return r
+}
+{ cc_get(#v, #i, ret, #vs, #xs) }
+
+// 4. counting the number of v's in a singly-linked list (MEDIUM)
+{ (v == #v) * (k == #k) * cc_sll(#v, #vs, #xs) }
+function cc_slist_contains(v, k) {
+  [[ unfold cc_sll_ht(v, #h, #t, #vs, #xs)]];
+  [[ assert {bind: #size} (v -b> #size, #h, #t) ]];
+  head := [v + 1];
+  node := head;
+  count := 0;
+  [[ if (#size != 0) {
+    assert {bind: #beta, #last, #gamma} lseg(head, #t, #beta, #gamma) *
+      sll(#t, [ #last ], [ #t ]);
+    apply concat_lseg_sll(#h, #t, #beta, [#last], #gamma, [#t]);
+    apply list_count_create(node, #beta @ [#last], #gamma @ [#t], k)
+  } else {
+    fold sll(null, [], []);
+    fold list_count([], #k, 0)
+  }
+  ]];
+  [[ fold lseg(head, head, [], []) ]];
+  [[ fold list_count([], #k, 0)]];
+  [[ invariant {bind: node, count, #start, #startp, #rg, #end, #endp}
+    lseg(head, node, #start, #startp) * sll(node, #end, #endp) *
+    (#vs == #start @ #end) * (#xs == #startp @ #endp) *
+    list_count(#start, k, count) * list_count(#end, k, #rg) ]];
+  while (node != null) {
+    [[ unfold sll(node, #end, #endp) ]];
+    [[ assert {bind: #node} (node == #node) ]];
+    [[ unfold list_count(#end, k, #rg) ]];
+    val := [node];
+    if (val == k) {
+      [[ apply list_count_append_true(#start, k, count, val) ]];
+      count := count + 1
+    } else {
+      [[ apply list_count_append_false(#start, k, count, val) ]];
+      skip
+    };
+    node := [node + 1];
+    [[ apply lseg_append(head, #node, #start, val, node, #startp) ]]
+  };
+  [[ if (#size != 0) {
+    apply lseg_to_sll(head, #beta @ [#last]);
+    apply sll_split_last(#h, #beta, #last, #gamma, #t);
+    fold cc_sll_ht(v, #h, #t, #vs, #xs)
+  } else {
+    fold cc_sll_ht(v, null, null, [], [])
+  } ]];
+  return count
+}
+{ cc_sll(#v, #vs, #xs) * list_count(#vs, #k, ret) }

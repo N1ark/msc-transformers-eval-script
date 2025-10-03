@@ -1,0 +1,49 @@
+// ========== 2 - Function calls ==========
+//
+// As a follow-up from the last exercise, use fold/unfold to make list_prepend
+// verify.
+//
+// Function calls work based on the consume/produce paradigm: within the
+// function body, whenever there is a function call to f, the relevant part of
+// the state that matches the precondition of f is "consumed" -- and the
+// postcondition of f is produced.
+//
+//     { P(x) * F } y := f(x) { Q(y) * F
+//
+//                 given
+//
+//     { P(n) } f(n) { ...; return r } { Q(r) }
+//
+// In short, only the relevant parts of the assertion will be appropriately
+// replaced in a function call given the function's specification.
+
+//#region  === DON'T EDIT THIS ===
+
+@config manual_fold : true
+
+predicate list(+x, vs) {
+    (x == null) * (vs == nil);
+    (x -b> #v, #z) * list(#z, #vss) * (vs == #v::#vss)
+}
+
+{ (v == #v) }
+function list_allocate_node(v){
+  t := new(2);
+  [t] := v;
+  [[ fold list(null, []) ]];
+  [[ fold list(t, [ #v ]) ]];
+  return t
+}
+{ list(ret, [ #v ]) }
+
+//#endregion  === EDIT BELOW HERE ===
+
+{ (x == #x) * (k == #k) * list(#x, #vs) }
+function list_prepend(x, k){
+    z := list_allocate_node(k);
+    [[ unfold list(z, [ k ]) ]];
+    [z + 1] := x;
+    [[ fold list(z, (k :: #vs)) ]];
+    return z
+}
+{ list(ret, #k :: #vs) }

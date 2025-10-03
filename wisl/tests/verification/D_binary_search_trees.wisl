@@ -1,0 +1,274 @@
+// ========== Exercise D: Binary search trees ==========
+//
+// Let's look at a more interesting data structure: binary search trees.
+//
+// A binary search tree contains:
+//   1. A root key (which is an Int value for this exercise)
+//   2. A left subtree (possibly null)
+//   3. A right subtree (possibly null)
+// All keys in the left subtree must be less than the root key, and all keys in
+// the right subtree must be greater than the root key. This implies that the
+// tree contains no duplicate keys.
+//
+// === Predicates ===
+// Before setting up the binary search tree predicate, we must be able to
+// express the following properties:
+//   1. There are no duplicate key elements in a tree
+//   2. All keys in the left subtree are strictly less than the root key
+//   3. All keys in the right subtree are strictly greater than the root key
+// There are many ways to express these properties; we will do so using lists.
+//
+// Look through the lemmas and predicates described below, before verifying
+// BSTCopy, BSTSearch and BSTFindMin.
+
+//#region  === DON'T EDIT THIS ===
+
+@config manual_fold : false
+
+predicate list_member(+vs, +v, r : Bool) {
+  (vs == []) * (r == false);
+  (vs == v :: #ws) * (r == true);
+  (vs == #v :: #ws) * (#v != v) * list_member(#ws, v, r)
+}
+
+// v > v' for all v' ∈ vs
+predicate list_gt(+vs, +v : Int) {
+  (vs == []);
+  (vs == #v :: #ws) * (#v < v) * list_gt(#ws, v)
+}
+
+// v < v' for all v' ∈ vs
+predicate list_lt(+vs, +v : Int) {
+  (vs == []);
+  (vs == #v :: #ws) * (#v > v) * list_lt(#ws, v)
+}
+
+// The binary search tree predicate. Note that we represent all the keys
+// contained in the tree with a (sorted) list.
+predicate bst(+x, vs : List) {
+  // --- Base case ---
+  (x == null) * (vs == []);
+
+  // --- Inductive case ---
+  (x -b> #v, #l, #r) * bst(#l, #vsl) * bst(#r, #vsr) *
+  (vs == (#vsl @ [#v] @ #vsr)) *
+  // The root key doesn't appear in either subtree
+  list_member(#vsl, #v, false) *
+  list_member(#vsr, #v, false) *
+  // Keys to the right are greater than the root key
+  list_gt(#vsl, #v) *
+  // Keys to the left are less than the root key
+  list_lt(#vsr, #v)
+}
+
+predicate list_min(+vs, +v : Int) {
+  (vs == []);
+  (vs == #v :: #ws) * (v <= #v) * list_min(#ws, v)
+}
+
+lemma list_member_prepend_neq {
+  statement:
+    forall vs, k, v.
+      list_member(vs, v, #r) * (k != v) |- list_member(k::vs, v, #r)
+}
+
+lemma list_member_concat {
+  statement:
+    forall vs1, vs2, v.
+      list_member(vs1, v, true) |- list_member(vs1 @ vs2, v, true)
+}
+
+lemma list_member_concat_gen {
+  statement:
+    forall vs1, vs2, v.
+      list_member(vs1, v, #r1) * list_member(vs2, v, #r2)
+        |- list_member(vs1 @ vs2, v, (#r1 || #r2))
+}
+
+// Note: lemmas with 'emp' as a premise have no requirements, and can be applied
+//       "from nothing".
+lemma list_member_front_helper {
+  statement:
+    forall v, vs.
+      emp |- list_member(v::vs, v, true)
+}
+
+lemma list_member_mid {
+  statement:
+    forall v, vsl, vsr.
+      emp |- list_member(vsl @ [v] @ vsr, v, true)
+}
+
+lemma min_merge {
+  statement:
+    forall min, vsl, vsr.
+      list_min(vsl, min) * list_lt(vsr, min)
+        |- list_min(vsl@vsr, min) * list_lt(vsr, min)
+}
+
+lemma min_merge_k {
+  statement:
+    forall min, k, vsl, vsr.
+      list_min(vsl@[k], min) * list_lt(vsr, k)
+        |- list_min(vsl@[k]@vsr, min) * list_lt(vsr, k)
+}
+
+lemma min_gt_append {
+  statement:
+    forall min, k, vs.
+      list_min(vs, min) * list_gt(vs, k) * (vs != [])
+        |- list_min(vs @ [k], min) * list_gt(vs, k)
+}
+
+lemma min_include {
+  statement:
+    forall k, vs.
+      list_min(vs, k) |- list_min(k::vs, k)
+}
+
+// Note: A predicate is 'pure' if it only contains pure (first-order) assertions
+// and/or other pure predicates. These pure predicates can be duplicated, though
+// Gillian cannot determine this itself, so we declare some lemmas to help.
+lemma min_duplicate {
+  statement:
+    forall vs, k.
+      list_min(vs, k) |- list_min(vs, k) * list_min(vs, k)
+}
+
+lemma lt_duplicate {
+  statement:
+    forall vs, k.
+      list_lt(vs, k) |- list_lt(vs, k) * list_lt(vs, k)
+}
+
+lemma gt_duplicate {
+  statement:
+    forall vs, k.
+      list_gt(vs, k) |- list_gt(vs, k) * list_gt(vs, k)
+}
+
+lemma member_duplicate {
+  statement:
+    forall vs, k, r.
+      list_member(vs, k, r) |- list_member(vs, k, r) * list_member(vs, k, r)
+}
+
+lemma list_member_gt {
+  statement:
+    forall a, k, vs.
+      (k < a) * list_gt(vs, k) |- list_member(vs, a, false) * list_gt(vs, k)
+}
+
+lemma list_member_lt {
+  statement:
+    forall a, k, vs.
+      (a < k) * list_lt(vs, k) |- list_member(vs, a, false) * list_lt(vs, k)
+}
+
+lemma list_member_elem_neq {
+  statement:
+    forall vs, a, b.
+      list_member(vs, a, false) * list_member(vs, b, true)
+        |- list_member(vs, a, false) * list_member(vs, b, true) * (a != b)
+}
+
+{ (v == #v) * (v : Int) }
+function BSTAllocateLeaf(v) {
+  t := new(3);
+  [t] := v;
+  return t
+}
+{ bst(ret, [#v]) }
+
+//#endregion  === EDIT BELOW HERE ===
+
+// 1. Copying a binary search tree (MEDIUM)
+// This function creates and returns a copy of the given binary search tree.
+{ (x == #x) * bst(#x, #vs) }
+function BSTCopy(x) {
+  if(x != null) {
+    [[ assert {bind: #k, #kl, #kr} (x -b> #k, #kl, #kr) ]];
+    [[ assert {bind: #vsl, #vsr}
+            bst(#kl, #vsl) * bst(#kr, #vsr) ]];
+    y := new(3);
+    t := [x];
+    [y] := t;
+    t := [x + 1];
+    t := BSTCopy(t);
+    [y + 1] := t;
+    t := [x + 2];
+    t := BSTCopy(t);
+    [y + 2] := t;
+    [[ apply lt_duplicate(#vsr, #k) ]];
+    [[ apply gt_duplicate(#vsl, #k) ]];
+    [[ apply member_duplicate(#vsl, #k, false) ]];
+    [[ apply member_duplicate(#vsr, #k, false) ]];
+    [[ fold bst(y, #vs) ]]
+  } else {
+    y := null
+  };
+  return y
+}
+{ bst(#x, #vs) * bst(ret, #vs) }
+
+// 2. Searching for a value in a BST (MEDIUM)
+// This function returns whether a given value appears in a given tree.
+{ (x == #x) * (a == #a) * bst(#x, #vs) * a : Int }
+function BSTSearch(x, a) {
+  r := false;
+  if(x != null) {
+    [[ assert {bind: #k, #kl, #kr, #vsl, #vsr} (x -b> #k, #kl, #kr) *
+             bst(#kl, #vsl) * bst(#kr, #vsr) *
+             list_gt(#vsl, #k) * list_lt(#vsr, #k) *
+             list_member(#vsl, #k, false) * list_member(#vsr, #k, false) ]];
+    t := [x];
+    if(a == t) {
+      [[ apply list_member_mid(a, #vsl, #vsr) ]];
+      r := true
+    } else {
+      if(a < t) {
+        [[ apply list_member_lt(#a, #k, #vsr) ]];
+        t := [x + 1];
+        r := BSTSearch(t, a)
+      } else {
+        [[ apply list_member_gt(#a, #k, #vsl) ]];
+        t := [x + 2];
+        r := BSTSearch(t, a)
+      };
+      [[ apply list_member_prepend_neq(#vsr, #k, #a) ]];
+      [[ apply list_member_concat_gen(#vsl, #k::#vsr, #a) ]]
+    }
+  } else {
+    skip
+  };
+  return r
+}
+{ bst(#x, #vs) * list_member(#vs, #a, ret) }
+
+// 3. Finding the minimum of a binary search tree (HARD)
+// This returns the minimum key in a given binary search tree, i.e. the
+// left-most key. Note that the precondition requires the tree to be non-empty.
+{ (x == #x) * (#x != null) * bst(#x, #vs) }
+function BSTFindMin(x) {
+  [[ assert {bind: #k, #kl, #kr, #vsl, #vsr} (x -b> #k, #kl, #kr) *
+          bst(#kl, #vsl) * bst(#kr, #vsr) *
+          list_gt(#vsl, #k) * list_lt(#vsr, #k) *
+          list_member(#vsl, #k, false) * list_member(#vsr, #k, false) ]];
+  l := [x + 1];
+  if (l == null) {
+    [[ apply min_include(#k, #vsl) ]];
+    min := [x];
+    [[ apply min_merge(#k, #k::#vsl, #vsr) ]];
+    [[ apply list_member_concat(#k::#vsl, #vsr, #k) ]]
+  } else {
+    min := BSTFindMin(l);
+    [[ apply min_gt_append(min, #k, #vsl) ]];
+    [[ apply min_merge_k(min, #k, #vsl, #vsr) ]];
+    [[ apply list_member_elem_neq(#vsl, #k, min) ]];
+    [[ apply list_member_concat_gen(#vsl, [#k], min)]];
+    [[ apply list_member_concat(#vsl@[#k], #vsr, min) ]]
+  };
+  return min
+}
+{ (#x != null) * bst(#x, #vs) *
+  list_member(#vs, ret, true) * list_min(#vs, ret) }

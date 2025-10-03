@@ -18,9 +18,9 @@ baseState() {
 
 _transformerState() {
     echo "Setting up transformer state ($1)..."
-    cd "$dir/../../gillian-instantiation-template"
+    cd "$dir/../../Gillian/transformers"
     eval $(opam env)
-    sed -i '' "s/module Prebuilt = .*/module Prebuilt = $1/" bin/main.ml
+    sed -i '' "s/module Prebuilt = .*/module Prebuilt = $1/" bin/transformers.ml
     dune build
 }
 
@@ -93,20 +93,20 @@ if [ "$1" == "b" ] || [ "$1" == "a" ]; then
     test gillian-js base
 fi
 if [ "$1" == "t" ] || [ "$1" == "a" ] || [ "$1" == "T" ]; then
-    transformerState
-    test instantiation tr
+    baseState
+    test t_js tr
 fi
 if [ "$1" == "aloc" ] || [ "$1" == "a" ] || [ "$1" == "T" ]; then
     transformerALocState
-    test instantiation tr-aloc
+    test transformers tr-aloc
 fi
 if [ "$1" == "split" ] || [ "$1" == "a" ] || [ "$1" == "T" ]; then
     transformerSplitState
-    test instantiation tr-split
+    test transformers tr-split
 fi
 if [ "$1" == "alocsplit" ] || [ "$1" == "a" ] || [ "$1" == "T" ]; then
     transformerALocSplitState
-    test instantiation tr-alocsplit
+    test transformers tr-alocsplit
 fi
 
 echo "Done."

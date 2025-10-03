@@ -1,0 +1,86 @@
+// ========== 03 - If-statements and recursive calls ==========
+//
+// Using the same predicate, solve the following functions that deal with
+// recursively going into the list.
+//
+// If statements, as you may have seen with the list length example, separates
+// the code into two different branches representing the state of the condition.
+// unfolding the list predicate will also give you two branches: the base case
+// and the inductive case. Gillian takes advantage of this and utilizes the
+// information gained from unfolding to take you through a specific if statement
+// branch. For example, in the inductive case, we know (x != null), so if the
+// condition is (x == null), then it will only take you through the else case.
+//
+// Note that if we are given a function specification of the form
+//     { P(n) }
+//     f(n) { ...; return r }
+//     { Q(n) }
+// ... then this function specification is in some function specification
+// context C.
+//
+// Every time a function call is made to f, Gillian checks whether the function
+// specification is in C and proceeds with the consume/produce operation.
+// For recursive calls, note that the specification of the function you are
+// trying to verify is already included in the function specification context C.
+// This allows you to verify recursive functions without any issues.
+//
+// Bonus challenge: Try to write a recursive function for copying a list,
+// and fill out the specification, trying to make it as strong as possible.
+// A skeleton of the function, list_copy, is provided for you with the
+// precondition. You might want to use the list_allocate_node function.
+
+//#region  === DON'T EDIT THIS ===
+
+@config manual_fold : true
+
+predicate list(+x, vs) {
+    (x == null) * (vs == nil);
+    (x -b> #v, #z) * list(#z, #vss) * (vs == #v::#vss)
+}
+
+{ (v == #v) }
+function list_allocate_node(v){
+  t := new(2);
+  [t] := v;
+  [[ fold list(null, []) ]];
+  [[ fold list(t, [ #v ]) ]];
+  return t
+}
+{ list(ret, [ #v ]) }
+
+//#endregion  === EDIT BELOW HERE ===
+
+{(x == #x) * (y == #y) * list(#x, #xs) * list(#y, #ys) }
+function list_concat(x, y) {
+  [[ unfold list(x, #xs) ]];
+  if (x == null){
+    x := y
+  } else {
+    t := [x + 1];
+    z := list_concat(t, y);
+    [x + 1] := z;
+    [[ fold list(x, #xs @ #ys) ]]
+  };
+  return x
+}
+{ list(ret,  #xs @ #ys) }
+
+{ (x == #x) * list(#x, #vs) }
+function list_copy(x){
+  y := null;
+  [[ unfold list(x, #vs) ]];
+  if (x != null) {
+    k := [x];
+    y := list_allocate_node(k);
+    [[ unfold list(y, [ k ]) ]];
+    t := [x + 1];
+    z := list_copy(t);
+    [y + 1] := z
+  } else {
+    skip
+  };
+  [[ fold list(x, #vs) ]];
+  [[ fold list(y, #vs) ]];
+  return y
+}
+{ list(#x, #vs) * list(ret, #vs) }

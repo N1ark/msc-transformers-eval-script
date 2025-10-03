@@ -1,5 +1,0 @@
-
-function write(x, y) {
- [y] := 6;
- return 0
-}

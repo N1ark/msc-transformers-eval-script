@@ -7,11 +7,12 @@ filter=$1
 # $1: folder to compile
 # $2: compilation flag
 compile() {
+    dune build
     for i in $(ls -d "$1"/*.js); do
         if [ ! -z "$filter" ] && [[ ! "$i" == *"$filter"* ]]; then
             continue
         fi
-        (dune exec -- gillian-js compile --$2 "$i" > /dev/null  && echo "Compiled $i") || echo "Failed to compile $i -- ignoring."
+        (dune exec --no-build -- gillian-js compile --$2 "$i" > /dev/null  && echo "Compiled $i") || echo "Failed to compile $i -- ignoring."
     done
 }
 

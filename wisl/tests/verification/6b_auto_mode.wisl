@@ -1,0 +1,42 @@
+// ========== 6b - Auto mode ==========
+//
+// From now on, we're re-enabling Gillian's automatic folding and unfolding!
+//
+// Copy your solution from the previous exercise and paste it down below, and
+// see which tactics you can remove while still passing verification.
+
+//#region  === DON'T EDIT THIS ===
+
+@config manual_fold : false
+
+predicate list(+x, vs) {
+  (x == null) * (vs == []);
+  (x -b> #v, #z) * list(#z, #vss) * (vs == #v :: #vss)
+}
+
+predicate l_member(+vs, +v, r : Bool) {
+  (vs == []) * (r == false);
+  (vs == v :: #ws) * (r == true) * l_member(#ws, v, #mem);
+  (vs == #v :: #ws) * (#v != v) * l_member(#ws, v, r)
+}
+
+//#endregion  === EDIT BELOW HERE ===
+
+{ (x == #x) * (k == #k) * list(#x, #vs) }
+function list_remove_weak(x, k) {
+  if (x == null) {
+    skip
+  } else {
+    v := [x];
+    next := [x + 1];
+    if (v == k){
+      free(x);
+      x := list_remove_weak(next, k)
+    } else {
+      z := list_remove_weak(next, k);
+      [x + 1] := z
+    }
+  };
+  return x
+}
+{ list(ret, #nvs) * l_member(#nvs, #k, false) }

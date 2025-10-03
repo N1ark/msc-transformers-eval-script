@@ -1,0 +1,55 @@
+// ========== 6d - Changing requirements ==========
+//
+// Suppose that our requirements have changed: our function now needs to return
+// a new list with the desired element removed, while leaving the original list
+// untouched.
+//
+// Modify the the body *and* specification of list_remove_copy to fulfil this
+// new requirement. Try to make the postcondition as strong as possible.
+//
+// Feel free to copy over the predicate you wrote in the previous exercise.
+
+//#region  === DON'T EDIT THIS ===
+
+@config manual_fold : false
+
+predicate list(+x, vs) {
+  (x == null) * (vs == []);
+  (x -b> #v, #z) * list(#z, #vss) * (vs == #v :: #vss)
+}
+
+{ (v == #v) }
+function list_allocate_node(v){
+  t := new(2);
+  [t] := v;
+  return t
+}
+{ list(ret, [ #v ]) }
+
+//#endregion  === EDIT BELOW HERE ===
+
+predicate list_without(+xs, +v, ys) {
+  (xs == []) * (ys == []);
+  (xs == #x :: #xss) * (ys == #x :: #yss) * (v != #x)
+    * list_without(#xss, v, #yss);
+  (xs == #x :: #xss) * (#x == v) * list_without(#xss, v, ys)
+}
+//-
+{ (x == #x) * (k == #k) * list(#x, #vs) }
+function list_remove_copy(x, k) {
+  if (x == null) {
+    r := null
+  } else {
+    v := [x];
+    next := [x + 1];
+    if (v == k) {
+      r := list_remove_copy(next, k)
+    } else {
+      z := list_remove_copy(next, k);
+      r := list_allocate_node(v);
+      [r + 1] := z
+    }
+  };
+  return r
+}
+{ list(#x, #vs) * list(ret, #nvs) * list_without(#vs, #k, #nvs) }

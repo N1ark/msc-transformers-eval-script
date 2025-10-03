@@ -94,8 +94,8 @@ proc i__gt (el, er) {
         goto [locr = locr] ok nok;
   nok:  message := "Cannot compare these two values";
         fail [message] (locl, locr);
-  ok:   offsetl := l-nth(el, 1.);
-        offsetr := l-nth(er, 1.);
+  ok:   offsetl := l-nth(el, 1i);
+        offsetr := l-nth(er, 1i);
         ret := not (offsetl i<= offsetr);
         return;
   linp: ret := not (el i<= er); (* we assume that both are integer *)
@@ -135,4 +135,3 @@ pred i__pred_leq (+el, +er, out):
 pred i__pred_geq (+el, +er, out):
       types(el: List, er: List) * (el == {{ #locl, #offsetl }}) * (er == {{ #locr, #offsetr }}) * (#locr == #locl) * (out == (not (#offsetl i< #offsetr))),
       types(el: Int, er: Int) * (out == (not (el i< er)));
-

@@ -1,0 +1,135 @@
+// ========== 5 - Applying lemmas ==========
+//
+// In this exercise, we'll demonstrate the final tactic you'll need for this lab: apply.
+//
+// You may find yourself applying the same sequence of tactics in multiple
+// places. You may also need to obtain facts inductively, which can't be done
+// with the previously shown tactics. This is where lemmas come in!
+//
+// Lemmas have the following structure:
+//     lemma {lemma-name} {
+//       statement:
+//         forall param_1, param_2, ..., param_n.
+//            {premise} |- {conclusion}
+//     }
+//
+// And the apply tactic like so:
+//     [[ apply {lemma-name}(param_1, param_2, ..., param_n) ]]
+//
+// This will check that the state satisfies the lemma's premise, consume that
+// premise, and produce the conclusion - just like a function call.
+// Note that Gillian normally expects a lemma to have an accompanying proof
+// (which is verified similarly to a function), but a deeper dive into lemmas
+// is outside the scope of this lab. For these exercises, the lemmas can be
+// given without proof.
+//
+// Lemmas will always be provided for you; since lemmas themselves are not
+// verified in this lab, we advise against writing your own.
+//
+// As an example, look at list_allocate_node below. Instead of applying fold
+// twice (once for the empty list, and once for the single element), we can use
+// the 'singleton_list' lemma, which takes in as a premise the cell assertion
+// (t -b> v, null) (established by the previous two instructions), and produces
+// the completed predicate.
+//
+// Try verifying list_get and list_member_func using the provided lemmas.
+//
+// Bonus challenge 1: can you verify list_get without using the lemma?
+// Bonus challenge 2: Is the lemma for list_member_func actually necessary?
+//                    Can we remove it by modifying something else?
+
+//#region  === DON'T EDIT THIS ===
+
+@config manual_fold : true
+
+lemma singleton_list {
+  statement:
+    forall t, v.
+      (t -b> v, null) |- list(t, [ #v ])
+  proof:
+    fold list(null, []);
+    fold list(t, [ #v ])
+}
+
+{ (v == #v) }
+function list_allocate_node(v){
+  t := new(2);
+  [t] := v;
+  [[ apply singleton_list(t, v) ]];
+  return t
+}
+{ list(ret, [ #v ]) }
+
+predicate list(+x, vs) {
+    (x == null) * (vs == nil);
+    (x -b> #v, #z) * list(#z, #vss) * (vs == #v::#vss)
+}
+
+predicate list_search(+vs, +i, v) {
+  (vs == #v :: #vs) * (i == 0) * (v == #v);
+  (vs == #v :: #vs) * (i != 0) * (i > 0) * (i < len(vs)) * list_search(#vs, i - 1, v)
+}
+
+lemma search_not_null {
+  statement:
+    forall x, vs, i, r.
+      list(x, vs) * list_search(vs, i - 1, r) |- list(x, vs) * list_search(vs, i - 1, r) * (x != null)
+}
+
+predicate list_member(+vs, +v, r : Bool){
+  (vs == []) * (r == false);
+  (vs == v :: #ws) * (r == true) * list_member(#ws, v, #mem);
+  (vs == #v :: #ws) * (#v != v) * list_member(#ws, v, r)
+}
+
+lemma list_member_create {
+  statement:
+    forall x, k, vs.
+      list(x, vs) |- list(x, vs) * list_member(vs, k, #r)
+}
+
+//#endregion  === EDIT BELOW HERE ===
+
+{ (x == #x) * (i == #i) * (x != null) * list(x, #vs) *
+    list_search(#vs, #i, #r) * (i >= 0) }
+function list_get(x, i) {
+  [[ unfold list(x, #vs) ]];
+  [[ unfold list_search(#vs, #i, #r) ]];
+  v := [x];
+  next := [x + 1];
+  if (i == 0) {
+    r := v
+  } else {
+    [[ assert {bind: #vss} list(next, #vss) ]];
+    [[ apply search_not_null(next, #vss, i, #r) ]];
+    i := i - 1;
+    r := list_get(next, i)
+  };
+  [[ fold list(x, #vs) ]];
+  [[ fold list_search(#vs, #i, #r) ]];
+  return r
+}
+{ list(#x, #vs) * list_search(#vs, #i, #r) * (ret == #r) }
+
+{ (x == #x) * (k == #k) * list(#x, #vs) }
+function list_member_func(x, k){
+  found := false;
+  [[ unfold list(x, #vs) ]];
+  if (x == null){
+    skip
+  } else {
+    v := [x];
+    t := [x + 1];
+    if (v == k){
+      found := true;
+      [[ assert {bind: #vss} (#vs == v :: #vss) ]];
+      [[ apply list_member_create(t, #k, #vss) ]]
+    } else {
+      found := list_member_func(t, k)
+    }
+  };
+  [[ fold list_member(#vs, k, found) ]];
+  [[ fold list(x, #vs) ]];
+  return found
+}
+{ list(#x, #vs) * list_member(#vs, #k, #r) * (ret == #r) }

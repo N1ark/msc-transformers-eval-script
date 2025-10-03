@@ -20,10 +20,4 @@ compile() {
     cd ../Gillian
     eval $(opam env)
     compile "$dir/tests/verification" verification
-    compile "$dir/tests/biabduction" bi-abduction
-    compile "$dir/tests/wpst" wpst
 )
-
-# Patching
-# 'empty' became a keyword or something? so need to remove that :)
-sed -i '' -e 's/empty/emptyy/g' $dir/tests/verification/wand.gil

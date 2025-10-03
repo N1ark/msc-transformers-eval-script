@@ -1,0 +1,137 @@
+// ========== Exercise F: Singly Linked List Iteration ==========
+//
+// Below are some examples of the last lab, but in iterative style. Feel free to
+// do these exercises for more practice on iteration!
+//
+// Note that you might need the conditional tactic for list_member_iter:
+//   [[ if (condition) {tactics} else {tactics} ]]
+//
+// Also note that this specific list_member predicate has the true case also
+// have the inductive predicate. This is to make it easier to prove the loop
+// invariant.
+
+//#region  === DON'T EDIT THIS ===
+
+@config manual_fold: false
+
+predicate list(+x, vs) {
+  (x == null) * (vs == []);
+
+  (x -b> #v, #z) * list(#z, #vss) *
+  (vs == #v :: #vss)
+}
+
+predicate listseg(+x, y, vs) {
+  (x == y) * (vs == []);
+  (x -b> #v, #z) * listseg(#z, y, #vss) * (vs == #v :: #vss)
+}
+
+predicate list_member(+vs, +v, r : Bool){
+  (vs == []) * (r == false);
+  (vs == v :: #ws) * (r == true) * list_member(#ws, v, #mem);
+  (vs == #v :: #ws) * (#v != v) * list_member(#ws, v, r)
+}
+
+lemma listseg_append {
+  statement:
+    forall x, vs, v, z.
+      listseg(x, #y, vs) * (#y -b> v, z) |- listseg(x, z, vs @ [ v ])
+}
+
+lemma listseg_concat_list {
+  statement:
+    forall x, y.
+      listseg(x, y, #vx) * list(y, #vy) |- list (x, #vx @ #vy)
+}
+
+lemma listseg_to_list {
+  statement:
+    forall x.
+      listseg(x, null, #xs) |- list(x, #xs)
+}
+
+lemma list_member_append {
+  statement:
+    forall vs, v, r, w.
+      list_member(vs, v, r) |- list_member(vs @ [ w ], v, (r || (w == v)))
+}
+
+lemma list_member_concat {
+  statement:
+    forall vs1, vs2, v.
+      list_member(vs1, v, #r1) * list_member(vs2, v, #r2)
+        |- list_member(vs1 @ vs2, v, (#r1 || #r2))
+}
+
+//#region  === EDIT BELOW HERE ===
+
+{ (x == #x) * list(#x, #vs) }
+function list_copy_iter(x){
+    y := null;
+    if (x == null){
+      skip
+    } else {
+        y := new(2);
+        v := [x];
+        [y] := v;
+        t := [x + 1];
+        p := y;
+        [[ fold listseg(t, t, [])]];
+        [[ fold listseg(x, t, [v])]];
+        [[ invariant {bind: c, v, t, p, #vs1, #vs2, #vs3, #a}
+          listseg(x, t, #vs1) * list(t, #vs2) * (v == #a) *
+            (#vs == (#vs1 @ #vs2)) * listseg(y, p, #vs3) * (p -b> #a, null) *
+                (#vs1 == (#vs3 @ [#a])) ]];
+        while (t != null){
+            [[ assert {bind: #t, #p} (t == #t) * (p == #p) ]];
+            v := [t];
+            c := new(2);
+            [c] := v;
+            [p + 1] := c;
+            p := c;
+            t := [t + 1];
+            [[ apply listseg_append(x, #vs1, v, t) ]];
+            [[ apply listseg_append(y, #vs3, #a, p) ]]
+        };
+        [[ assert {bind: #vs3} listseg(y, p, #vs3) ]];
+        [[ apply listseg_append(y, #vs3, v, null) ]];
+        [[ apply listseg_to_list(x) ]];
+        [[ apply listseg_to_list(y) ]]
+    };
+    return y
+}
+{ list(#x, #vs) * list(ret, #vs) }
+
+{ (x == #x) * (k == #k) * list(#x, #vs) * list_member(#vs, #k, #r) }
+function list_member_iter(x, k) {
+  found := false;
+  next := x;
+  [[ fold listseg(x, next, [])]];
+  [[ fold list_member([], k, false) ]];
+  [[ invariant {bind: found, next, #vs1, #vs2, #rg}
+       listseg(x, next, #vs1) * list(next, #vs2) *
+         (#vs == (#vs1 @ #vs2)) * (#r == (found || #rg)) *
+           list_member(#vs1, k, found) * list_member(#vs2, k, #rg) ]];
+  while ((found == false) && (next != null)){
+    [[ assert (found == false) ]];
+    [[ assert {bind: #next} (next == #next) ]];
+    [[ unfold list(next, #vs2) ]];
+    [[ assert {bind: #v, #z} #next -b> #v, #z ]];
+    v := [next];
+    found := (v == k);
+    next := [next + 1];
+    [[ apply listseg_append(x, #vs1, #v, next) ]];
+    [[ unfold list_member(#vs2, k, #rg) ]];
+    [[ apply list_member_append(#vs1, k, false, #v) ]]
+  };
+  [[ if (found == false) {
+      apply listseg_to_list(#x);
+      unfold list_member([], #k, false)
+    } else {
+      assert {bind: #vs1, #vs2} listseg(#x, next, #vs1) * list(next, #vs2);
+      apply list_member_concat(#vs1, #vs2, #k);
+      apply listseg_concat_list(#x, next)
+    } ]];
+  return found
+}
+{ list(#x, #vs) * list_member(#vs, #k, #r) * (ret == #r) }

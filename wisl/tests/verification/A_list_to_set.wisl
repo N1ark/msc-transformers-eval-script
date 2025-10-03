@@ -1,0 +1,157 @@
+// ========== Exercise A: Removing duplicates ==========
+//
+// We want to transform a list into a set. We can represent a set using a
+// set_list predicate, which ensures that each element doesn't appear in the
+// rest of the list (using the list_member predicate).
+//
+// Try getting remove_duplicates to verify.
+//
+// Bonus challenge: Can you make a stronger postcondition than the one given for
+// remove_duplicates? Try implementing this for remove_duplicates_strong and
+// verifying it.
+
+//#region  === DON'T EDIT THIS ===
+
+@config manual_fold : false
+
+predicate list(+x, vs) {
+  (vs == []) * (x == null);
+  (x -b> #v, #z) * list(#z, #vs) * (vs == #v :: #vs)
+}
+
+predicate list_member(+vs, +v, r : Bool){
+  (vs == []) * (r == false);
+  (vs == v :: #ws) * (r == true);
+  (vs == #v :: #ws) * (#v != v) * list_member(#ws, v, r)
+}
+
+predicate set_list(+x, vs) {
+  (vs == []) * (x == null);
+  (x -b> #v, #z) * set_list(#z, #vs) * (vs == #v :: #vs) *
+  list_member(#vs, #v, false)
+}
+
+predicate contains_all(+xs, +vs) {
+  (xs == []);
+  (xs == #x :: #xs) * list_member(vs, #x, true) * contains_all(#xs, vs)
+}
+
+lemma list_member_create {
+  statement:
+    forall x, k, vs.
+      list(x, vs) |- list(x, vs) * list_member(vs, k, #r)
+}
+
+lemma set_list_member_create {
+  statement:
+    forall x, k, vs.
+      set_list(x, vs) |- set_list(x, vs) * list_member(vs, k, #r)
+}
+
+lemma list_member_duplicate {
+  statement:
+    forall vs, k, r.
+      list_member(vs, k, r) |- list_member(vs, k, r) * list_member(vs, k, r)
+}
+
+lemma list_member_true {
+  statement:
+    forall vs, k, v.
+      list_member(vs, k, true) |- list_member(v :: vs, k, true)
+}
+
+lemma contains_all_prepend {
+  statement:
+    forall xs, vs, v.
+      contains_all(xs, vs) |- contains_all(xs, v :: vs)
+}
+
+{ (v == #v) }
+function set_list_allocate_node(v) {
+  t := new(2);
+  [t] := v;
+  return t
+}
+{ set_list(ret, [ #v ]) }
+
+{ (x == #x) * (k == #k) *  set_list(#x, #vs) * list_member(#vs, #k, false) }
+function set_list_prepend(x, k){
+    z := set_list_allocate_node(k);
+    [z + 1] := x;
+    [[ apply list_member_duplicate(#vs, #k, false)]];
+    return z
+}
+{ set_list(ret, #k :: #vs) * list_member(#k :: #vs, #k, true) }
+
+{ (x == #x) * (k == #k) * set_list(#x, #vs) * list_member(#vs, #k, #r) }
+function set_list_member(x, k){
+  found := false;
+  [[ unfold list_member(#vs, k, #r) ]];
+  if (x == null){
+    skip
+  } else {
+    v := [x];
+    if (v == k){
+      found := true
+    } else {
+      t := [x + 1];
+      found := set_list_member(t, k)
+    }
+  };
+  return found
+}
+{ set_list(#x, #vs) * list_member(#vs, #k, #r) * (ret == #r) }
+
+//#endregion  === EDIT BELOW HERE ===
+
+{ (x == #x) * list(x, #vs) }
+function remove_duplicates(x) {
+  if (x == null) {
+    r := null
+  } else {
+    v := [x];
+    next := [x + 1];
+    r := remove_duplicates(next);
+    [[ assert {bind: #s} set_list(r, #s)]];
+    [[ assert {bind: #v, #vss} (#vs == #v :: #vss) ]];
+    [[ apply set_list_member_create(r, v, #s) ]];
+    mem := set_list_member(r, v);
+    [[ apply contains_all_prepend(#s, #vss, #v) ]];
+    if (mem) {
+      skip
+    } else {
+      r := set_list_prepend(r, v);
+      [[ apply list_member_create(next, #v, #vss) ]]
+    }
+  };
+  return r
+}
+{ list(#x, #vs) * set_list(ret, #xs) * contains_all(#xs, #vs) }
+
+// === Bonus challenge start here ===
+
+{ (x == #x) * list(x, #vs) }
+function remove_duplicates_strong(x) {
+  if (x == null) {
+    r := null
+  } else {
+    v := [x];
+    next := [x + 1];
+    r := remove_duplicates_strong(next);
+    [[ assert {bind: #s} set_list(r, #s)]];
+    [[ assert {bind: #v, #vss} (#vs == #v :: #vss) ]];
+    [[ apply set_list_member_create(r, v, #s) ]];
+    mem := set_list_member(r, v);
+    [[ apply contains_all_prepend(#s, #vss, #v)]];
+    if (mem) {
+      skip
+    } else {
+      r := set_list_prepend(r, v);
+      [[ apply contains_all_prepend(#vss, #s, #v)]];
+      [[ apply list_member_create(next, #v, #vss) ]]
+    }
+  };
+  return r
+}
+{ list(#x, #vs) * set_list(ret, #xs) * contains_all(#xs, #vs)
+  * contains_all(#vs, #xs) }

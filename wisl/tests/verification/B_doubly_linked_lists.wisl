@@ -1,0 +1,127 @@
+// ========== Exercise B: Doubly-linked lists ==========
+//
+// Having dealt with singly-linked lists, let's try a more complicated, yet
+// familiar data structure: doubly-linked lists.
+//
+// A node in a doubly-linked list contains references to the next
+// and previous nodes. In this formalisation, we represent
+// a node as follows: a node is a ternary cell of the form
+// x -b> v, n, p, where:
+// - v is the element stored in this node
+// - n is a pointer to the next node
+// - p is a pointer to the previous node
+//
+// Before writing the doubly-linked list predicate, we will first
+// write predicates for representing segments of a doubly-linked list.
+// The segment of a doubly-linked list only represents a part of the
+// whole list.
+// As we will see, the predicate can be written in two ways, but they
+// both take the general form of: dlseg(x, y, v, w, vs)
+// This block of memory contains part of a doubly-linked list, which
+// begins at x (which succeeds w), and ends at v (which precedes y). The
+// elements in this list segment are given by the mathematical list vs.
+//
+// Take a look below to see what each predicate and lemma does, before trying
+// your hand at verifying concat. Notice how doubly-linked lists improve the
+// time complexity of operations like concat (O(1) instead of O(n)), but make
+// the verification process more involved.
+
+//#region  === DON'T EDIT THIS ===
+
+@config manual_fold : false
+
+// This describes a doubly-linked list segment, unfolding from the left.
+predicate dlsegl(+x, +y, +v, +w, vs : List) {
+  (x == y) * (v == w) * (vs == nil);
+  (x -b> #a, #z, w) * (vs == #a :: #vss) * dlsegl(#z, y, v, x, #vss)
+}
+
+// This describes a doubly-linked list segment, unfolding from the right
+predicate dlsegr(+x, +y, +v, +w, vs : List) {
+  (x == y) * (v == w) * (vs == nil);
+  (v -b> #a, y, #z) * (vs == #vss @ [#a]) * dlsegr(x, v, #z, w, #vss)
+}
+
+// We have a number of lemmas for appending/prepending nodes to a doubly linked
+// list. For dlsegl, it would be helpful if we could append a node to the end of
+// the list.
+lemma dlsegl_append_right {
+  statement:
+    forall x, v, z, w, vs, a, y.
+      dlsegl(x, v, z, w, vs) * (v -b> a, y, z) |- dlsegl(x, y, v, w, vs @ [ a ])
+
+  variant: len vs
+}
+
+// Similarly, for dlsegr, it would be helpful if we could prepend a node to the
+// start of the list.
+lemma dlsegr_append_left {
+  statement:
+    forall x, a, z, w, y, v, vs.
+      (x -b> a, z, w) * dlsegr(z, y, v, x, vs) |- dlsegr(x, y, v, w, a :: vs)
+
+  variant: len vs
+}
+
+// Note that dlsegl(x, y, v, w vs) and dlsegr(x, y, v, w, vs) represent the same
+// lists, so one can change between these two representations when needed.
+lemma dlseg_l_to_r {
+  statement:
+    forall x, y, v, w, vs.
+      dlsegl(x, y, v, w, vs) |- dlsegr(x, y, v, w, vs)
+
+  variant: len vs
+}
+
+// The same property holds vice-versa.
+lemma dlseg_r_to_l {
+  statement:
+    forall x, y, v, w, vs.
+      dlsegr(x, y, v, w, vs) |- dlsegl(x, y, v, w, vs)
+
+  variant: len vs
+}
+
+// We define a "complete" doubly-linked list. This holds when both end-points
+// are null, i.e. there is no preceding list segment, and no succeeding list
+// segment. Note that this is represented using dlsegl; dlsegr can be used via
+// the dlseg_l_to_r lemma.
+predicate dlist(+x, +y, vs) {
+  dlsegl(x, null, y, null, vs)
+}
+
+// Finally, we have the dlseg_concat lemma, which concatenates two
+// doubly-linked list segments.
+lemma dlseg_concat {
+  statement:
+    forall x_a, v_a, w_a, vs_a, x_b, y_b, v_b, vs_b.
+      dlsegl(x_a, x_b, v_a, w_a, vs_a) * dlsegl(x_b, y_b, v_b, v_a, vs_b)
+        |- dlsegl(x_a, y_b, v_b, w_a, (vs_a @ vs_b))
+}
+
+//#endregion  === EDIT BELOW HERE ===
+
+{ (x_a == #x_a) * (v_a == #v_a) * (x_b == #x_b) * (v_b == #v_b) *
+  dlist(#x_a, #v_a, #vs_a) * dlist(#x_b, #v_b, #vs_b) }
+function concat(x_a, v_a, x_b, v_b) {
+  r := new(2);
+  if (x_a == null) {
+    [r] := x_b;
+    [r+1] := v_b
+  } else {
+    if (x_b == null) {
+      [r] := x_a;
+      [r+1] := v_a
+    } else {
+      [[ apply dlseg_l_to_r(x_a, null, v_a, null, #vs_a) ]];
+      [v_a + 1] := x_b;
+      [x_b + 2] := v_a;
+      [[ apply dlseg_r_to_l(x_a, x_b, v_a, null, #vs_a) ]];
+      [[ apply dlseg_concat(x_a, v_a, null, #vs_a, x_b, null, v_b, #vs_b) ]];
+      [r] := x_a;
+      [r+1] := v_b
+    }
+  };
+  return r
+}
+{ (ret -b> #h, #t) * dlist(#h, #t, #vs_a @ #vs_b) }

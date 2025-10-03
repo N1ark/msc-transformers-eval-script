@@ -1,0 +1,46 @@
+// ========== 6c - A stronger specification ==========
+//
+// Notice that the postcondition of the previous exercise's function is weak: we
+// could return any list - even an empty list - as long as it doesn't contain
+// the removed element.
+//
+// Let's fix this by first defining a predicate that precisely describes the
+// desired relationship between the list before and after removal.
+// If all goes well, list_remove_strong shouldn't need any tactics to verify!
+
+//#region  === DON'T EDIT THIS ===
+
+@config manual_fold : false
+
+predicate list(+x, vs) {
+  (x == null) * (vs == []);
+  (x -b> #v, #z) * list(#z, #vss) * (vs == #v :: #vss)
+}
+
+//#endregion  === EDIT BELOW HERE ===
+
+predicate list_without(+xs, +v, ys) {
+  (xs == []) * (ys == []);
+  (xs == #x :: #xss) * (ys == #x :: #yss) * (v != #x)
+    * list_without(#xss, v, #yss);
+  (xs == #x :: #xss) * (#x == v) * list_without(#xss, v, ys)
+}
+
+{ (x == #x) * (k == #k) * list(#x, #vs) }
+function list_remove_strong(x, k) {
+  if (x == null) {
+    skip
+  } else {
+    v := [x];
+    next := [x + 1];
+    if (v == k){
+      free(x);
+      x := list_remove_strong(next, k)
+    } else {
+      z := list_remove_strong(next, k);
+      [x + 1] := z
+    }
+  };
+  return x
+}
+{ list(ret, #nvs) * list_without(#vs, #k, #nvs) }

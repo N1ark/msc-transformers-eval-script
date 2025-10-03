@@ -1,0 +1,175 @@
+// ========== Exercise C: Well-bracketed ==========
+//
+// Now that you're familiar with verifying singly-linked list algorithms, let's
+// look at an application of them.
+//
+// Given a string, can we write a function to check that it's well-bracketed?
+// Well-bracketed in this case means:
+//   1. The number of opening brackets must match the number of closing brackets
+//      (of the same type)
+//   2. Whenever there is an opening bracket, a closing bracket must match it
+//      later in the string
+//   3. The order of opening brackets must match the order of closing brackets;
+//      for example, "[<]>" is not well-bracketed, while "[<>]" is
+//   4. Non-bracket characters are ignored
+//
+// To give some examples:
+//   - "[<a>]" is well-bracketed
+//   - "[]<>>" is *not* well-bracketed
+//   - "<ab[c]e" is *not* well-bracketed
+//
+// For this exercise, we consider two types of brackets: "[]" and "<>".
+//
+// Look over the functions wellBr and wellBr_helper; these use a singly-linked
+// as a stack to track which opening brackets not yet been matched.
+//
+// Your task is to define the predicate 'wbs', which, given a list of strings
+// 'a' (representing the individual characters of a string) and the stack 'b',
+// deduces whether the string represented by 'a' is well-bracketed.
+//
+// The predicates openBracket, closeBracket, nonBracket are provided to you,
+// which indicate whether a character is an open bracket, close bracket, or
+// neither, respectively.
+
+//#region  === DON'T EDIT THIS ===
+
+@config manual_fold : false
+
+predicate list(+x, vs) {
+  (x == null) * (vs == []);
+
+  (x -b> #v, #next) * list(#next, #vs) *
+  (vs == #v :: #vs)
+}
+
+{ (v == #v) }
+function list_allocate_node(v) {
+  t := new(2);
+  [t] := v;
+  [[ fold list(null, []) ]];
+  [[ fold list(t, [ #v ]) ]];
+  return t
+}
+{ list(ret, [ #v ]) }
+
+{ (x == #x) * (k == #k) * list(#x, #vs) }
+function list_push(x, k) {
+  z := list_allocate_node(k);
+  [[ unfold list(z, [ #k ]) ]];
+  [z + 1] := x;
+  [[ fold list(z, #k :: #vs) ]];
+  return z
+}
+{ list(ret, #k :: #vs) }
+
+{ (x == #x) * (x != null) * list(#x, #k :: #vs) }
+function list_pop(x) {
+  [[ unfold list(#x, #k :: #vs) ]];
+  r := new(2);
+  k := [x];
+  z := [x + 1];
+  [r] := k;
+  [r + 1] := z;
+  return r
+}
+{ list(#z, #vs) * (ret == #r) * #r -b> #k, #z }
+
+{ (x == #x) * (s == #s) * list(#x, #a) * list(#s, #b) * wbs(#a, #b, #r) }
+function wellBr_helper(x, s) {
+  ok := true;
+  [[ unfold wbs(#a, #b, #r) ]];
+  if (x == null) {
+    if (s != null) {
+      ok := false
+    } else {
+      skip
+    }
+  } else {
+    c := [x];
+    n := [x + 1];
+    if ((c == "<") || (c == "[")) {
+      s := list_push(s, c);
+      ok := wellBr_helper(n, s)
+    } else {
+      if ((c == ">") || (c == "]")) {
+        if (s == null) {
+          ok := false
+        } else {
+          r := list_pop(s);
+          d := [r];
+          s := [r + 1];
+          bpair := ((d == "<") && (c == ">")) || ((d == "[") && (c == "]"));
+          ok := wellBr_helper(n, s);
+          ok := ok && bpair
+        }
+      } else {
+        ok := wellBr_helper(n, s)
+      }
+    }
+  };
+  return ok
+}
+{ list(#x, #a) * wbs(#a, #b, #r) * (ret == #r) }
+
+{ (x == #x) * list(x, #a) * wb(#a, #r) }
+function wellBr(x) {
+  s := null;
+  r := wellBr_helper(x, s);
+  return r
+}
+{ list(#x, #a) * wb(#a, #r) * (ret == #r) }
+
+predicate wb(+a, r : Bool) {
+  wbs(a, [], r)
+}
+
+predicate openBracket(+c : String) {
+  ((c == "<") || (c == "["))
+}
+
+predicate closeBracket(+c : String) {
+  ((c == ">") || (c == "]"))
+}
+
+predicate nonBracket(+c : String) {
+  ((c != "<") /\ (c != ">") /\ (c != "[") /\ (c != "]"))
+}
+
+//#endregion  === EDIT BELOW HERE ===
+
+predicate wbs(+a, +b, r : Bool) {
+  // base case
+  (a == []) * (b == []) * (r == true);
+ 
+  // base case when stack is non-empty
+  (a == []) * (b == #d :: #b) * (r == false);
+ 
+  // open brackets case
+  (a == #c :: #a) *
+  openBracket(#c) *
+  wbs(#a, #c :: b, r);
+ 
+  // close brackets true case
+  (a == #c :: #a) *
+  closeBracket(#c) *
+  (b == #d :: #b) *
+  ((#d == "<") /\ (#c == ">") \/ ((#d == "[") /\ (#c == "]"))) *
+  wbs(#a, #b, r);
+ 
+  // close brackets empty case
+  (a == #c :: #a) * closeBracket(#c) *  (b == []) * (r == false)
+    * wbs(#a, [], #r);
+ 
+  // close brackets false case
+  (a == #c :: #a) *
+  closeBracket(#c) *
+  (b == #d :: #b) *
+  (((#d != "<") \/ (#c != ">")) /\ ((#d != "[") \/ (#c != "]"))) *
+  (r == false) *
+  wbs(#a, #b, #r);
+ 
+  // no brackets case
+  (a == #c :: #a) *
+  nonBracket(#c) *
+  wbs(#a, b, r)
+}

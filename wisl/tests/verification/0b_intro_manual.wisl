@@ -1,0 +1,45 @@
+// ========== 0b - Intro (manual mode) ==========
+//
+// In Gillian, predicates are assertions and can be defined recursively,
+// often containing multiple cases (separated by semicolons).
+// Gillian does not immediately interpret a predicate equivalently to its
+// definition, but a predicate can be replaced with its definition (creating
+// branching paths if multiple cases apply) by 'unfolding', and the reverse by
+// 'folding'.
+//
+// In many cases, Gillian can automatically fold and unfold as needed.
+// While you're getting to grips with Gillian, you'll have to fold and unfold
+// predicates yourself, by applying tactics like so:
+//     [[ fold P(x, y) ]];
+//     [[ unfold P(x, y) ]];
+//
+// Try adding folds and unfolds to make this function verify!
+//
+// Note: If you get stuck on an exercise, you might be able to find a hint in
+// the 'hints' folder.
+
+//#region  === DON'T EDIT THIS ===
+
+@config manual_fold : true
+
+predicate list(+x, vs) {
+    (x == null) * (vs == nil);
+    (x -b> #v, #z) * list(#z, #vss) * (vs == #v::#vss)
+}
+
+//#endregion  === EDIT BELOW HERE ===
+
+{ (x == #x) * list(#x, #vs) }
+function llen(x) {
+    [[ unfold list(#x, #vs) ]];
+    if (x == null) {
+        n := 0
+    } else {
+        t := [x+1];
+        n := llen(t);
+        n := n + 1
+    };
+    [[ fold list(#x, #vs) ]];
+    return n
+}
+{ list(#x, #vs) * (ret == len(#vs)) }

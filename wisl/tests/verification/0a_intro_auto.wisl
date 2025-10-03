@@ -1,0 +1,32 @@
+// ========== 0a - Intro ==========
+//
+// Welcome to the Gillian lab! These exercises aim to introduce you to Gillian
+// and its underlying Compositional Symbolic Execution principles.
+//
+// You may have noticed that Gillian's language server is showing that llen is
+// failing verification. Try using the debugger (by clicking 'Verify llen') to
+// explore the verification trace, and figure out how to fix the program.
+
+//#region  === DON'T EDIT THIS ===
+
+@config manual_fold : false
+
+predicate list(+x, vs) {
+    (x == null) * (vs == nil);
+    (x -b> #v, #z) * list(#z, #vss) * (vs == #v::#vss)
+}
+
+//#endregion  === EDIT BELOW HERE ===
+
+{ (x == #x) * list(#x, #vs) }
+function llen(x) {
+    if (x == null) {
+        n := 0
+    } else {
+        t := [x+1];
+        n := llen(t);
+        n := n + 1
+    };
+    return n
+}
+{ list(#x, #vs) * (ret == len(#vs)) }
