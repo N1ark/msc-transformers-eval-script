@@ -4,6 +4,7 @@ from pathlib import Path
 import sys
 import regex
 from typing import List, Tuple
+import pathlib
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -11,7 +12,7 @@ import seaborn as sns
 
 from matplotlib import font_manager
 
-font_path = "/Users/oscar/Library/Fonts/cmunrm.ttf"
+font_path = pathlib.Path.home() / "Library" / "Fonts" / "cmunrm.ttf"
 font_manager.fontManager.addfont(font_path)
 prop = font_manager.FontProperties(fname=font_path)
 
