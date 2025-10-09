@@ -7,7 +7,6 @@ filter=$1
 # $1: folder to compile
 # $2: compilation flag
 compile() {
-    dune build
     for i in $(ls -d "$1"/*.c); do
         if [ ! -z "$filter" ] && [[ ! "$i" == *"$filter"* ]]; then
             continue
@@ -18,7 +17,6 @@ compile() {
 
 # $1: folder with the collections-c-for-gillian files
 compileCollectionsC() {
-    dune build
     for i in $(ls -d "$1"/*.c); do
         if [ ! -z "$filter" ] && [[ ! "$i" == *"$filter"* ]]; then
             continue
@@ -56,9 +54,10 @@ compileAmazon() {
 (
     cd ../Gillian
     eval $(opam env)
+    dune build
     compile "$dir/tests/verification" verification
     compile "$dir/tests/biabduction" bi-abduction
     compile "$dir/tests/wpst" wpst
     compileCollectionsC "$dir/tests/collections-c"
-    # compileAmazon "$dir/tests/amazon" don't compile amazon, use Gillian-C interpreter directly
+    compileAmazon "$dir/tests/amazon" don't compile amazon, use Gillian-C interpreter directly
 )

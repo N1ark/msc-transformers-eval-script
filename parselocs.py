@@ -54,10 +54,7 @@ if __name__ == "__main__":
             print("Parsing", path)
             e = parse_folder(path)
             entries.extend(
-                [
-                    (path.name, category, filename, loc)
-                    for category, filename, loc in e
-                ]
+                [(path.name, category, filename, loc) for category, filename, loc in e]
             )
 
     paths = set([e[0] for e in entries])
@@ -100,9 +97,7 @@ if __name__ == "__main__":
             ax.grid(axis=axis)
         if filename is not None:
             lgd = None if lgd is None else (lgd,)
-            fig.savefig(
-                f"{filename}.pdf", bbox_extra_artists=lgd, bbox_inches="tight"
-            )
+            fig.savefig(f"{filename}.pdf", bbox_extra_artists=lgd, bbox_inches="tight")
         if title is not None:
             plt.title(title)
 
@@ -114,16 +109,11 @@ if __name__ == "__main__":
         data = data.reset_index()
         # get categories sorted by total locs
         categories = (
-            data.groupby("category")
-            .sum()
-            .sort_values(by="locs", ascending=False)
-            .index
+            data.groupby("category").sum().sort_values(by="locs", ascending=False).index
         )
 
         # remove "transformers" from categoryies
-        categories = [
-            cat for cat in categories if cat != "transformers (provided)"
-        ]
+        categories = [cat for cat in categories if cat != "transformers (provided)"]
         categories = categories + ["transformers (provided)"]
 
         colors = [

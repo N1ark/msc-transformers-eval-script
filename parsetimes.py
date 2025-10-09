@@ -78,9 +78,7 @@ if __name__ == "__main__":
         print(f"Parsed {file} ({execution}): found {len(durations)} entries")
 
     if mode_filter:
-        entries = [
-            e for e in entries if e[1].lower().find(mode_filter.lower()) != -1
-        ]
+        entries = [e for e in entries if e[1].lower().find(mode_filter.lower()) != -1]
     print(f"Filtered to {len(entries)} entries with mode {mode_filter}")
 
     # add missing actions as 0 for each (execution, mode, file)
@@ -93,10 +91,7 @@ if __name__ == "__main__":
     for key in keys:
         for action in actions:
             if not any(
-                e[0] == key[0]
-                and e[1] == key[1]
-                and e[2] == key[2]
-                and e[3] == action
+                e[0] == key[0] and e[1] == key[1] and e[2] == key[2] and e[3] == action
                 for e in entries_set
             ):
                 entries.append((key[0], key[1], key[2], action, 0.0, 0.0, 0))
@@ -154,9 +149,7 @@ if __name__ == "__main__":
             ax.grid(axis=axis)
         if filename is not None:
             lgd = None if lgd is None else (lgd,)
-            fig.savefig(
-                f"{filename}.pdf", bbox_extra_artists=lgd, bbox_inches="tight"
-            )
+            fig.savefig(f"{filename}.pdf", bbox_extra_artists=lgd, bbox_inches="tight")
         if title is not None:
             plt.title(title)
 
@@ -218,9 +211,7 @@ if __name__ == "__main__":
         )
 
         # sum actions by their name for each file execution
-        data = data.groupby(
-            ["execution", "mode", "file", "action", "file_id"]
-        ).sum()
+        data = data.groupby(["execution", "mode", "file", "action", "file_id"]).sum()
         data = data.reset_index()
 
         # find all actions below X biggest:
@@ -236,9 +227,7 @@ if __name__ == "__main__":
         data["action"] = data["action"].apply(
             lambda x: x if x not in smaller else "other"
         )
-        data = data.groupby(
-            ["execution", "mode", "file", "action", "file_id"]
-        ).sum()
+        data = data.groupby(["execution", "mode", "file", "action", "file_id"]).sum()
 
         # average by file (avoids repetition from different iteration counts)
         data = data.groupby(["execution", "mode", "file", "action"]).mean()
@@ -256,9 +245,7 @@ if __name__ == "__main__":
         legend = actions
         prev = None
         for action in actions:
-            subdata = data[data["action"] == action][
-                ["execution", "total_duration"]
-            ]
+            subdata = data[data["action"] == action][["execution", "total_duration"]]
             subdata = subdata.groupby("execution").mean()
             subdata = subdata.reset_index()
             if prev is None:
@@ -290,12 +277,8 @@ if __name__ == "__main__":
     def time_spent_per_action_detailed(fix, ax):
         # merge actions, consume and produce
         data = df.copy()
-        data["action"] = data["action"].apply(
-            lambda x: "other" if not "/" in x else x
-        )
-        data = data.groupby(
-            ["execution", "mode", "file", "action", "file_id"]
-        ).sum()
+        data["action"] = data["action"].apply(lambda x: "other" if not "/" in x else x)
+        data = data.groupby(["execution", "mode", "file", "action", "file_id"]).sum()
         data = data.reset_index()
 
         # find all actions below X biggest:
@@ -311,9 +294,7 @@ if __name__ == "__main__":
         data["action"] = data["action"].apply(
             lambda x: x if x not in smaller else "other"
         )
-        data = data.groupby(
-            ["execution", "mode", "file", "action", "file_id"]
-        ).sum()
+        data = data.groupby(["execution", "mode", "file", "action", "file_id"]).sum()
 
         # average by file (avoids repetition from different iteration counts)
         data = data.groupby(["execution", "mode", "file", "action"]).mean()
@@ -337,17 +318,13 @@ if __name__ == "__main__":
         prod_actions = len([a for a in actions if a.startswith("prod")])
         ea_actions = len([a for a in actions if a.startswith("ea")])
         cons_colors = re_order_palette(sns.color_palette("Blues", cons_actions))
-        prod_colors = re_order_palette(
-            sns.color_palette("Greens", prod_actions)
-        )
+        prod_colors = re_order_palette(sns.color_palette("Greens", prod_actions))
         ea_colors = re_order_palette(sns.color_palette("Reds", ea_actions))
 
         legend = actions
         prev = None
         for action in actions:
-            subdata = data[data["action"] == action][
-                ["execution", "total_duration"]
-            ]
+            subdata = data[data["action"] == action][["execution", "total_duration"]]
             subdata = subdata.groupby("execution").mean()
             subdata = subdata.reset_index()
             color = None

@@ -94,14 +94,10 @@ if __name__ == "__main__":
         execution = file.split("/")[-1]
         execution = execution.split(".")[0]
         execution = execution.replace("_", "")
-        entries.extend(
-            [(execution, mode, file, dur) for mode, file, dur in durations]
-        )
+        entries.extend([(execution, mode, file, dur) for mode, file, dur in durations])
         print(f"Parsed {file} ({execution})")
 
-    df = pd.DataFrame(
-        entries, columns=["execution", "mode", "filename", "duration"]
-    )
+    df = pd.DataFrame(entries, columns=["execution", "mode", "filename", "duration"])
 
     if mode_filter:
         mode_filter = mode_filter.split(",")
@@ -137,15 +133,11 @@ if __name__ == "__main__":
         .mean()
         .reset_index()
     )
-    df_pf.to_csv(
-        dest + "avg_file_durations.csv", index=False, float_format="%.15f"
-    )
+    df_pf.to_csv(dest + "avg_file_durations.csv", index=False, float_format="%.15f")
 
     # save summed by mode
     df_mode = df.groupby(["execution", "mode"])["duration"].mean().reset_index()
-    df_mode.to_csv(
-        dest + "mode_durations.csv", index=False, float_format="%.15f"
-    )
+    df_mode.to_csv(dest + "mode_durations.csv", index=False, float_format="%.15f")
 
     # calculate relative differences in durations, compared to the average of the base executions for that file
     nosynt_exists = df_mode[df_mode["execution"] == "tr-nosynt"].shape[0] > 0
@@ -165,9 +157,7 @@ if __name__ == "__main__":
 
         # save for latex gnuplot use
         # we want column titles to be the value in execution, and each row to be a mode
-        df_pivot = df_copy.pivot(
-            index="mode", columns="execution", values="duration"
-        )
+        df_pivot = df_copy.pivot(index="mode", columns="execution", values="duration")
 
         # re-order columns: tr-nosynt, tr, tr-splitnosynt, tr-split
         df_pivot = df_pivot[["tr-nosynt", "tr", "tr-splitnosynt", "tr-split"]]
@@ -205,18 +195,16 @@ if __name__ == "__main__":
             ax.grid(axis=axis)
         if filename is not None:
             lgd = None if lgd is None else (lgd,)
-            fig.savefig(
-                f"{filename}.pdf", bbox_extra_artists=lgd, bbox_inches="tight"
-            )
+            fig.savefig(f"{filename}.pdf", bbox_extra_artists=lgd, bbox_inches="tight")
         if title is not None:
             plt.title(title)
 
     # plot the relative differences in durations, per mode+category, using boxplots
     def show_file_relative_diffs(fig, ax):
         data = df[df["execution"] != "base"]
-        colors = sns.color_palette(
-            "bright", n_colors=len(data["mode"].unique()) + 1
-        )[1:]
+        colors = sns.color_palette("bright", n_colors=len(data["mode"].unique()) + 1)[
+            1:
+        ]
         sns.boxplot(
             y="relative",
             x="filename",
@@ -257,9 +245,7 @@ if __name__ == "__main__":
 
     # plot the average duration per mode using barplots
     def show_avg_durations(fig, ax):
-        data = (
-            df.groupby(["execution", "mode"])["duration"].mean().reset_index()
-        )
+        data = df.groupby(["execution", "mode"])["duration"].mean().reset_index()
         sns.barplot(
             y="duration",
             x="mode",
@@ -302,9 +288,7 @@ if __name__ == "__main__":
     # plot the average relative difference per mode using barplots
     def show_avg_mode_relative_diff(fig, ax):
         data = df[df["execution"] != "base"]
-        data = (
-            data.groupby(["execution", "mode"])["relative"].mean().reset_index()
-        )
+        data = data.groupby(["execution", "mode"])["relative"].mean().reset_index()
         colors = sns.color_palette(
             "bright", n_colors=len(data["execution"].unique()) + 1
         )[1:]

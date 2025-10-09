@@ -17,8 +17,8 @@ font_path = pathlib.Path.home() / "Library" / "Fonts" / "cmunrm.ttf"
 font_manager.fontManager.addfont(font_path)
 prop = font_manager.FontProperties(fname=font_path)
 
-plt.rcParams['font.family'] = 'serif'
-plt.rcParams['font.serif'] = prop.get_name()
+plt.rcParams["font.family"] = "serif"
+plt.rcParams["font.serif"] = prop.get_name()
 
 biabduct_regex = r"\w+, \d+, \d+, \d+, \d+, ([\d.]+)"
 cat_regex = r"^[A-Za-z]+"
@@ -84,12 +84,18 @@ if __name__ == "__main__":
 
     # average duration per size
     df = df.groupby(["execution", "size"]).mean().reset_index()
-    df["duration"] = df["duration"] * 1_000_000 # ms to ns
+    df["duration"] = df["duration"] * 1_000_000  # ms to ns
 
     def cleanup_graph(
         ax,
         *,
-        legend=None, filename=None, title=None, axis="y", x_label=None, y_label=None, no_line=False
+        legend=None,
+        filename=None,
+        title=None,
+        axis="y",
+        x_label=None,
+        y_label=None,
+        no_line=False,
     ):
         if legend is False:
             lgd = None
@@ -113,8 +119,9 @@ if __name__ == "__main__":
 
     # plot time taken per size for each execution
     def show_time_per_size(fig, ax):
-        sns.lineplot(data=df, x="size", y="duration", hue="execution", ax=ax,
-            errorbar=('ci', 95))
+        sns.lineplot(
+            data=df, x="size", y="duration", hue="execution", ax=ax, errorbar=("ci", 95)
+        )
         ax.set_yscale("log")
 
         def ticks_format(value, index):
@@ -125,24 +132,29 @@ if __name__ == "__main__":
                n*10^m: otherwise
             To have all the number of the same size they are all returned as latex strings
             """
-            return '{0:.1f}'.format(value)
+            return "{0:.1f}".format(value)
 
         ax.minorticks_on()
         # major lines for X, major+minor for Y
-        plt.grid(which='major', color='k', linestyle='-', linewidth=0.5)
-        plt.grid(which='minor', color='k', alpha=0.5, linestyle=':', linewidth=0.5)
-        ax.tick_params(axis='both', which='major', labelsize=10)
-        ax.tick_params(axis='both', which='minor', labelsize=8)
+        plt.grid(which="major", color="k", linestyle="-", linewidth=0.5)
+        plt.grid(which="minor", color="k", alpha=0.5, linestyle=":", linewidth=0.5)
+        ax.tick_params(axis="both", which="major", labelsize=10)
+        ax.tick_params(axis="both", which="minor", labelsize=8)
         # ax.yaxis.set_major_formatter(ScalarFormatter())
         # ax.yaxis.set_minor_formatter(ScalarFormatter())
-        ax.yaxis.set_major_formatter(ticker.ScalarFormatter())   # remove the major ticks
-        ax.yaxis.set_minor_formatter(ticker.FuncFormatter(ticks_format))  #add the custom ticks
-
-
+        ax.yaxis.set_major_formatter(ticker.ScalarFormatter())  # remove the major ticks
+        ax.yaxis.set_minor_formatter(
+            ticker.FuncFormatter(ticks_format)
+        )  # add the custom ticks
 
         # ax.set_xscale("log")
-        cleanup_graph(ax, x_label="Size", y_label="Time (ns)", filename="time_per_size",
-            title="Time taken per size for each execution")
+        cleanup_graph(
+            ax,
+            x_label="Size",
+            y_label="Time (ns)",
+            filename="time_per_size",
+            title="Time taken per size for each execution",
+        )
 
     views = [
         show_time_per_size,
