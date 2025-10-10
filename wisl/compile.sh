@@ -11,7 +11,7 @@ compile() {
         if [ ! -z "$filter" ] && [[ ! "$i" == *"$filter"* ]]; then
             continue
         fi
-        (dune exec -- wisl compile --$2 "$i" > /dev/null  && echo "Compiled $i") || echo "Failed to compile $i -- ignoring."
+        ($3 compile --$2 "$i" > /dev/null  && echo "Compiled $i") || echo "Failed to compile $i -- ignoring."
     done
 }
 
@@ -19,5 +19,8 @@ compile() {
 (
     cd ../Gillian
     eval $(opam env)
-    compile "$dir/tests/verification" verification
+    dune build
+    dune install
+    compile "$dir/tests/verification" verification wisl
+    compile "$dir/tests/fractional" verification wislf
 )

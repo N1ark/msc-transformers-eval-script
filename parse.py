@@ -64,6 +64,7 @@ def parse_file(file_path):
                 dur = line.split("Symbolic testing):")[1]
                 dur = dur.split("s")[0]
                 duration_so_far += float(dur)
+        flush()
     return durations
 
 

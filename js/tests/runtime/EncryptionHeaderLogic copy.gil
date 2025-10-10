@@ -1,0 +1,825 @@
+(*************************
+ *************************
+ *******           *******
+ *******   Field   *******
+ *******           *******
+ *************************
+ *************************)
+
+(*
+    One header field consists of two bytes that contain the field length,
+    encoded as a big-endian 16-bit integer, followed by the field contents
+
+    buffer             fLength      field
+    ----------------||----|----|---- ... ----||----------------
+                readPos
+*)
+pred Field(+buffer : List, +readPos : Num, field : List, length : Num) :
+  (0 <=# readPos) * (#rawFL == l-sub(buffer, readPos, 2)) *
+    rawToUInt16(#rawFL, false, #fLength) *
+    (field == l-sub(buffer, (readPos + 2), #fLength)) *
+    (length == (2 + #fLength)) * ((readPos + length) <=# (l-len buffer));
+  facts: (2 <=# length);
+
+
+(****************************
+ ****************************
+ *******              *******
+ *******   Complete   *******
+ *******   Element    *******
+ *******              *******
+ ****************************
+ ****************************)
+
+(*
+    A complete element (CElement) is a contiguous sequence of fields.
+
+                    |------ length ------|
+
+                        /--- fList ---\
+    buffer              f1    ...    fn
+    ----------------||------| ... |------||----------------
+                readPos
+*)
+@nopath
+pred CElement(+buffer : List, +readPos : Num, +fCount : Num, element : List, length : Num) :
+  (0 <=# readPos) * (readPos <=# (l-len buffer)) *
+    (fCount == 0) * (element == {{  }}) * (length == 0),
+  (0 <# fCount) * Field(buffer, readPos, #field, #fLength) *
+    (#restFCount == (fCount - 1)) *
+    CElement(buffer, (readPos + #fLength), #restFCount, #restFields, #restLength) *
+    (element == l+ ({{ #field }}, #restFields)) * (length == (#fLength + #restLength));
+  (*
+      A complete element has a non-negative number of fields
+      and length, and must be correctly positioned within a buffer
+  *)
+  facts: (0 <=# readPos) and (0 <=# fCount) and (0 <=# length) and ((readPos + length) <=# (l-len buffer)) and ((l-len element) == fCount);
+
+(* The length of an element is not smaller than the length of its first field *)
+lemma CElementFirstFieldLength(buffer, readPos, fCount, field, restFields, eLength)
+[[
+    CElement(#buffer, #readPos, #fCount, l+({{ #field }}, #restFields), #eLength)
+]]
+[[
+    CElement(#buffer, #readPos, #fCount, l+({{ #field }}, #restFields), #eLength) *
+    (2 + l-len #field <=# #eLength)
+]]
+[*
+    unfold CElement(#buffer, #readPos, #fCount, l+({{ #field }}, #restFields), #eLength)
+*]
+
+(* The length of a non-empty complete element is strictly positive *)
+lemma CElementNonEmptyPositiveLength(buffer, readPos, fCount, fList, eLength)
+[[
+    CElement(#buffer, #readPos, #fCount, #fList, #eLength) * (0 <# #fCount)
+]]
+[[
+    CElement(#buffer, #readPos, #fCount, #fList, #eLength) *
+    (0 <# #eLength)
+]]
+[*
+    unfold CElement(#buffer, #readPos, #fCount, #fList, #eLength);
+    sep_assert (Field(#buffer, #readPos, #field, #fLength)) [bind: #fLength];
+    sep_assert (CElement(#buffer, #readPos + #fLength, #fCount - 1, #restFields, #restELength)) [bind: #restELength]
+*]
+
+(* Appending the first field of a given complete element to a complete element on its left *)
+lemma AppendFieldCC(buffer, readPos, fCount1, fList1, eLength1, fCount2, field, fList2, eLength2)
+[[
+    CElement(#buffer, #readPos, #fCount1, #fList1, #eLength1) *
+    CElement(#buffer, #readPos + #eLength1, #fCount2, l+({{ #field }}, #fList2), #eLength2) *
+    (#shift == 2 + l-len #field)
+]]
+[[
+    CElement(#buffer, #readPos, #fCount1 + 1, l+ (#fList1, {{ #field }}), #eLength1 + #shift) *
+    CElement(#buffer, #readPos + #eLength1 + #shift, #fCount2 - 1, #fList2, #eLength2 - #shift)
+]]
+[*
+    apply CElementFirstFieldLength(#buffer, #readPos + #eLength1, #fCount2, #field, #fList2, #eLength2);
+    unfold CElement(#buffer, #readPos, #fCount1, #fList1, #eLength1);
+    if (0 < #fCount1) then {
+        sep_assert ((#fList1 == l+ ({{ #fl1 }}, #rfl1))) [bind: #fl1, #rfl1];
+        sep_assert (CElement(#buffer, 2 + (l-len #fl1) + #readPos, #fCount1 - 1, #rfl1, #reL1)) [bind: #reL1];
+        apply AppendFieldCC(#buffer, 2 + (l-len #fl1) + #readPos, #fCount1 - 1, #rfl1, #reL1, #fCount2, #field, #fList2, #eLength2)
+    }
+*]
+
+(****************************
+ ****************************
+ *******              *******
+ *******   Complete   *******
+ *******   Elements   *******
+ *******              *******
+ ****************************
+ ****************************)
+
+(*
+    A complete element sequence (CElements) is a contiguous sequence of complete elements.
+
+                    |------- length -------|
+
+                       /--- elements ---\
+    buffer              ce1    ...    cen
+    ----------------||-------| ... |-------||----------------
+                 readPos
+*)
+pred CElements(+buffer : List, +readPos : Num, +eCount : Num, +fCount : Num,
+               elements : List, length : Num) :
+  (0 <=# readPos) * (readPos <=# (l-len buffer)) * (eCount == 0) *
+  (0 <# fCount) * (elements == {{  }}) * (length == 0),
+  (0 <=# readPos) * (0 <# eCount) * (0 <# fCount) * (0 <# length) *
+    CElement(buffer, readPos, fCount, #element, #eLength) * (#restECount == (eCount - 1)) *
+    CElements(buffer, (readPos + #eLength), #restECount, fCount, #restElements, #restLength) *
+    (elements == l+ ({{ #element }}, #restElements)) *
+    (length == (#eLength + #restLength));
+  (*
+      Complete elements must have a non-negative number of
+      elements with each element having at least one field,
+      their length must be non-negative, and they must be
+      correctly positioned within a buffer
+  *)
+  facts: (0 <=# readPos) and (0 <=# eCount) and (0 <# fCount) and (0 <=# length) and
+         ((readPos + length) <=# (l-len buffer)) and (eCount == (l-len elements));
+
+(* Appending a complete element to the given complete elements from the right *)
+lemma CElementsAppend(buffer, readPos, eCount, fCount, eList, esLength, fList, eLength)
+[[
+    CElements(#buffer, #readPos, #eCount, #fCount, #eList, #esLength) *
+    CElement(#buffer, #readPos + #esLength, #fCount, #fList, #eLength)
+]]
+[[
+    CElements(#buffer, #readPos, #eCount + 1, #fCount, l+ (#eList, {{ #fList }}), #esLength + #eLength)
+]]
+[*
+    apply CElementNonEmptyPositiveLength(#buffer, #readPos + #esLength, #fCount, #fList, #eLength);
+    unfold CElements(#buffer, #readPos, #eCount, #fCount, #eList, #esLength);
+    if (0 < #eCount) then {
+        sep_assert (CElement(#buffer, #readPos, #fCount, #newElementFieldList, #newElementLength)) [bind: #newElementFieldList, #newElementLength];
+        sep_assert (CElements(#buffer, (#readPos + #newElementLength), (#eCount - 1), #fCount, #remainingElementsList, #remainingElementsLength)) [bind: #remainingElementsList, #remainingElementsLength];
+        apply CElementsAppend(#buffer, (#readPos + #newElementLength), (#eCount - 1), #fCount, #remainingElementsList, #remainingElementsLength, #fList, #eLength)
+    }
+ *]
+
+(* Every element of a complete element sequence has the same number of fields *)
+lemma CElementsElementLength(buffer, readPos, eCount, fCount, eList, prefix, element, suffix)
+[[
+    CElements(#buffer, #readPos, #eCount, #fCount, #eList, #esLength) *
+    (#eList == l+ (#prefix, {{ #element }}, #suffix))
+]]
+[[
+    CElements(#buffer, #readPos, #eCount, #fCount, #eList, #esLength) *
+    (l-len #element == #fCount)
+]]
+[*
+    apply DestructList(#prefix);
+    unfold CElements(#buffer, #readPos, #eCount, #fCount, #eList, #esLength);
+    if (not (#prefix == {{ }})) then {
+        sep_assert (CElement(#buffer, #readPos, #fCount, #fList, #elementLength)) [bind: #elementLength];
+        sep_assert ((#prefix == l+ ({{ #head }}, #rest))) [bind: #head, #rest];
+        sep_assert (CElements(#buffer, (#readPos + #elementLength), (#eCount - 1), #fCount, l+ (#rest, {{#element}}, #suffix), #restESLength)) [bind: #restESLength];
+        apply CElementsElementLength(#buffer, (#readPos + #elementLength), (#eCount - 1), #fCount, l+ (#rest, {{#element}}, #suffix), #rest, #element, #suffix)
+    }
+ *]
+
+(******************************
+ ******************************
+ *******                *******
+ *******   Incomplete   *******
+ *******   Element      *******
+ *******                *******
+ ******************************
+ ******************************)
+
+(*
+    An incomplete element (IElement) is an expected contiguous
+    sequence of fields, but which exceeds the boundaries of the buffer.
+
+    Either the length of the first field cannot be read:
+
+                   buffer end
+                     |    |
+                     v    v
+    buffer             fLength
+    ----------------||----|----|
+                readPos
+
+    Or the first field itself cannot be read:
+
+                                 buffer end
+                                      |
+                                      v
+    buffer             fLength      field
+    ----------------||----|----|---- ... ----|
+                readPos
+
+    Or the first field can be read, but the rest cannot:
+
+                                  buffer end
+                                      |
+                                      v
+    buffer              f1     f2           fn
+    ----------------||------|------| ... |------|
+                readPos
+*)
+@nopath
+pred IElement(+buffer : List, +readPos : Num, +fCount : Num, fList : List, eLength : Num) :
+  (* Base case: not enough data to read length of next field *)
+  (0 <=# readPos) * (0 <# fCount) * (readPos <=# (l-len buffer)) *
+    ((l-len buffer) <# (readPos + 2)) * (fList == {{  }}) *
+    (eLength == ((l-len buffer) - readPos)),
+
+  (* Base case: enough data to read length of next field, but not enough data to read next field *)
+  (0 <=# readPos) * (0 <# fCount) * ((readPos + 2) <=# (l-len buffer)) *
+    (#rawFL == l-sub(buffer, readPos, 2)) * rawToUInt16(#rawFL, false, #fLength) *
+    ((l-len buffer) <# ((readPos + 2) + #fLength)) * (fList == {{  }}) *
+    (eLength == ((l-len buffer) - (readPos + 2))),
+
+  (* Recursive case: enough data to read one field, but not enough data to read the remaining ones *)
+  (0 <=# readPos) * (1 <# fCount) * Field(buffer, readPos, #field, #fLength) *
+    (#restFCount == (fCount - 1)) * ((readPos + #fLength) <=# (l-len buffer)) *
+    IElement(buffer, (readPos + #fLength), #restFCount, #restFList, #restELength) *
+    (fList == l+ ({{ #field }}, #restFList)) *
+    (eLength == (#fLength + #restELength));
+
+  (*
+        An incomplete element must have a strictly positive number of fields,
+        non-negative length, and must fit within the buffer
+    *)
+  facts: (0 <=# readPos) and (readPos <=# (l-len buffer)) and (0 <# fCount) and (0 <=# eLength);
+
+(* Appending the first field of a given incomplete element to a complete element on its left *)
+lemma AppendFieldCI(buffer, readPos, fCount1, fList1, eLength1, fCount2, field, fList2, eLength2)
+[[
+    CElement(#buffer, #readPos, #fCount1, #fList1, #eLength1) *
+    IElement(#buffer, #readPos + #eLength1, #fCount2, l+({{ #field }}, #fList2), #eLength2) *
+    (#shift == 2 + l-len #field)
+]]
+[[
+    CElement(#buffer, #readPos, #fCount1 + 1, l+ (#fList1, {{ #field }}), #eLength1 + #shift) *
+    IElement(#buffer, #readPos + #eLength1 + #shift, #fCount2 - 1, #fList2, #eLength2 - #shift)
+]]
+[*
+    unfold CElement(#buffer, #readPos, #fCount1, #fList1, #eLength1);
+    if (0 < #fCount1) then {
+        sep_assert ((#fList1 == l+ ({{ #fl1 }}, #rfl1))) [bind: #fl1, #rfl1];
+        sep_assert (CElement(#buffer, 2 + (l-len #fl1) + #readPos, #fCount1 - 1, #rfl1, #reL1)) [bind: #reL1];
+        apply AppendFieldCI(#buffer, 2 + (l-len #fl1) + #readPos, #fCount1 - 1, #rfl1, #reL1, #fCount2, #field, #fList2, #eLength2)
+    }
+*]
+
+(* Prepend an entire complete element to an incomplete element following it *)
+lemma PrependCElementI(buffer, readPos, fCount1, fList1, eLength1, fCount2, fList2, eLength2)
+[[
+    CElement(#buffer, #readPos, #fCount1, #fList1, #eLength1) *
+    IElement(#buffer, #readPos + #eLength1, #fCount2, #fList2, #eLength2)
+]]
+[[
+    IElement(#buffer, #readPos, #fCount1 + #fCount2, l+ (#fList1, #fList2), #eLength1 + #eLength2)
+]]
+[*
+    unfold CElement(#buffer, #readPos, #fCount1, #fList1, #eLength1);
+    if (0 < #fCount1) then {
+        sep_assert ((#fList1 == l+ ({{ #fl1 }}, #rfl1))) [bind: #fl1, #rfl1];
+        sep_assert (CElement(#buffer, 2 + (l-len #fl1) + #readPos, #fCount1 - 1, #rfl1, #reL1)) [bind: #reL1];
+        apply PrependCElementI(#buffer, 2 + (l-len #fl1) + #readPos, #fCount1 - 1, #rfl1, #reL1, #fCount2, #fList2, #eLength2)
+    }
+*]
+
+(******************************
+ ******************************
+ *******                *******
+ *******   Incomplete   *******
+ *******   Elements     *******
+ *******                *******
+ ******************************
+ ******************************)
+
+(*
+    An incomplete element sequence (IElements) is an expected contiguous
+    sequence of elements, but which exceeds the boundaries of the buffer.
+
+    Either the first element cannot be read:
+
+                     buffer end
+                         |
+                         v
+    buffer              ce1    ...    cen
+    ----------------||-------| ... |-------||----------------
+                readPos
+
+    Or the first element can be read, but the rest cannot:
+
+                           buffer end
+                                |
+                                v
+    buffer              ce1    ...    cen
+    ----------------||-------| ... |-------||----------------
+                readPos
+*)
+@nopath
+pred IElements(+buffer : List, +readPos : Num, +eCount : Num, +fCount : Num,
+               eList : List, esLength : Num) :
+  (* Base case: single incomplete element *)
+  (0 <=# readPos) * (readPos <=# (l-len buffer)) * (0 <# eCount) * (0 <# fCount) *
+    IElement(buffer, readPos, fCount, #fList, esLength) * (eList == {{  }}),
+
+  (* Recursive case: enough data to read first element, but not enough data to read the remaining ones *)
+  (0 <=# readPos) * (readPos <=# (l-len buffer)) * (1 <# eCount) * (0 <# fCount) *
+    CElement(buffer, readPos, fCount, #fList, #eLength) *
+    (#restECount == (eCount - 1)) *
+    IElements(buffer, (readPos + #eLength), #restECount, fCount, #restEList, #restESLength) *
+    (eList == l+ ({{ #fList }}, #restEList)) * (esLength == (#eLength + #restESLength));
+  facts: (0 <=# readPos) and (readPos <=# (l-len buffer)) and (0 <# eCount) and (0 <# fCount) and (0 <=# esLength);
+
+
+
+(****************************
+ ****************************
+ *******              *******
+ *******   General    *******
+ *******   Elements   *******
+ *******              *******
+ ****************************
+ ****************************)
+
+
+(* A general element sequene is either a complete or an incomplete element sequence *)
+@nopath
+nounfold pred Elements(definition : Str, +buffer : List, +readPos : Num,
+                       +eCount : Num, +fCount : Num, eList : List,
+                       esLength : Num) :
+  (definition == "Complete") * CElements(buffer, readPos, eCount, fCount, eList, esLength),
+  (definition == "Incomplete") * IElements(buffer, readPos, eCount, fCount, eList, esLength);
+  facts: (0 <=# readPos) and (readPos <=# (l-len buffer)) and (0 <=# eCount) and (0 <# fCount) and (0 <=# esLength);
+
+ (* An entire complete element sequence can be prepended to a general element sequence *)
+lemma PrependCElementsE(definition, buffer, readPos, eCount1, fCount, fList1, esLength1, eCount2, fList2, esLength2)
+[[
+    CElements(#buffer, #readPos, #eCount1, #fCount, #fList1, #esLength1) *
+    Elements(#definition, #buffer, #readPos + #esLength1, #eCount2, #fCount, #fList2, #esLength2)
+]]
+[[
+    Elements(#definition, #buffer, #readPos, #eCount1 + #eCount2, #fCount, l+ (#fList1, #fList2), #esLength1 + #esLength2)
+]]
+[*
+    unfold CElements(#buffer, #readPos, #eCount1, #fCount, #fList1, #esLength1)
+      [bind: (#fList := #element) and (#eLength := #eLength) and (#restElements := #restElements) and (#restESLength := #restLength)] ;
+    if (0 < #eCount1) then {
+        apply PrependCElementsE(#definition, #buffer, #readPos + #eLength, #eCount1 - 1, #fCount, #restElements, #restESLength, #eCount2, #fList2, #esLength2);
+        unfold Elements(#definition, #buffer, (#eLength + #readPos), ((-1. + #eCount1) + #eCount2), #fCount, l+ (#restElements, #fList2), (#restESLength + #esLength2));
+        if (definition == "Incomplete") then {
+            fold IElements(#buffer, #readPos, #eCount1 + #eCount2, #fCount, l+ (#fList1, #fList2), #esLength1 + #esLength2)
+        }
+    }
+*]
+
+(*****************************
+ *****************************
+ *******               *******
+ *******   Encrypted   *******
+ *******   Data Keys   *******
+ *******               *******
+ *****************************
+ *****************************)
+
+(*
+    Encrypted data keys (EKDs) are serialised by first providing the
+    number of EDKs to follow, and then providing the EDKs themselves
+    as a sequence of three-field elements
+
+    buffer             keyCount       EDKs
+    ----------------||-----|-----|---- ... ----||----------------
+                readPos
+*)
+
+(* Complete serialised EDKs *)
+@nopath
+nounfold pred CRawEncryptedDataKeys(+buffer : List, +readPos : Num,
+                                    EDKs : List, EDKsLength : Num) :
+    (0 <=# readPos) * (readPos <=# (l-len buffer)) *
+    (#rawEC == l-sub(buffer, readPos, 2)) *
+    rawToUInt16(#rawEC, false, #keyCount) * (0 <# #keyCount) *
+    Elements("Complete", buffer, (readPos + 2), #keyCount, 3, EDKs, #EDKsLength) *
+    (EDKsLength == (#EDKsLength + 2));
+
+(* Incomplete serialised EDKs *)
+@nopath
+nounfold pred IRawEncryptedDataKeys(buffer : List, readPos : Num) :
+  (* Not enough data to read the number of EDKs *)
+  (0 <=# readPos) * (readPos <=# (l-len buffer)) * ((l-len buffer) <# (readPos + 2)),
+
+    (* Enough data to read the number of EDKs, but not enough data to read the EDKs *)
+  (0 <=# readPos) * ((readPos + 2) <=# (l-len buffer)) * (#rawEC == l-sub(buffer, readPos, 2)) *
+    rawToUInt16(#rawEC, false, #keyCount) * (0 <# #keyCount) *
+    Elements("Incomplete", buffer, (readPos + 2), #keyCount, 3, #eList, #esLength);
+
+(* Broken serialised EDKs *)
+@nopath
+nounfold pred BRawEncryptedDataKeys(errorMessage : Str, +buffer : List, +readPos : Num) :
+  (* Incorrect starting position *)
+  ((readPos <# 0) \/ ((l-len buffer) <# readPos)) *
+    (errorMessage == "deserializeMessageHeader: startPos out of bounds."),
+
+  (* Zero EDKs provided *)
+  (0 <=# readPos) * ((readPos + 2) <=# (l-len buffer)) *
+    (#rawEC == l-sub(buffer, readPos, 2)) * rawToUInt16(#rawEC, false, 0) *
+    (errorMessage == "Malformed Header: No EncryptedDataKey found.");
+
+(* General serialised EDKs *)
+@nopath
+nounfold pred RawEncryptedDataKeys(definition : Str, +buffer : List, +readPos : Num, EDKs : List, EDKsLength : Num, errorMessage : Str) :
+  (definition == "Complete") * (errorMessage == "") * CRawEncryptedDataKeys(buffer, readPos, EDKs, EDKsLength),
+  (definition == "Incomplete") * IRawEncryptedDataKeys(buffer, readPos) * (EDKs == {{  }}) * (EDKsLength == 0) * (errorMessage == ""),
+  (definition == "Broken") * BRawEncryptedDataKeys(errorMessage, buffer, readPos) * (EDKs == {{  }}) * (EDKsLength == 0);
+
+
+(******************************
+ ******************************
+ *******                *******
+ *******   Encryption   *******
+ *******   Context      *******
+ *******                *******
+ ******************************
+ ******************************)
+
+(*
+    The encryption context (EC) are serialised
+    as a sequence of two-field elements, and is meant
+    to be the only contents of the provided buffer
+
+  buffer     EC
+     |----------------|
+*)
+
+(* Complete serialised encryption context *)
+@nopath
+nounfold pred CRawEncryptionContext(+buffer : List, ECKs : List) :
+  ((l-len buffer) == 0) * (ECKs == {{  }}),
+  (#rawKC == l-sub(buffer, 0, 2)) *
+    rawToUInt16(#rawKC, false, #keyCount) * (0 <# #keyCount) *
+    Elements("Complete", buffer, 2, #keyCount, 2, ECKs, #ECKsLength) *
+    toUtf8PairMap(ECKs, #utf8ECKs) * FirstProj(ECKs, #ECKeys) *
+    Unique(#ECKeys) * ((2 + #ECKsLength) == (l-len buffer));
+
+(* Broken serialised encryption context *)
+@nopath
+nounfold pred BRawEncryptionContext(errorMessage:Str, +buffer:List, ECKs:List) :
+    (* Not enough data provided *)
+    (2 <# l-len buffer) *
+    (#rawKC == l-sub (buffer, 0, 2)) *
+    rawToUInt16(#rawKC, false, #keyCount) *
+    (0 <# #keyCount) * (ECKs == {{ }}) *
+    Elements("Incomplete", buffer, 2, #keyCount, 2, #eList, #esLength) *
+    (errorMessage == "decodeEncryptionContext: Underflow, not enough data."),
+
+    (* Too much data provided *)
+    (2 <# l-len buffer) *
+    (#rawKC == l-sub (buffer, 0, 2)) *
+    rawToUInt16(#rawKC, false, #keyCount) *
+    (0 <# #keyCount) *
+    Elements("Complete", buffer, 2, #keyCount, 2, ECKs, #ECKsLength) *
+    (! (#ECKsLength + 2 == l-len buffer)) *
+    (errorMessage == "decodeEncryptionContext: Overflow, too much data."),
+
+    (* Duplicated key in context *)
+    (2 <# l-len buffer) *
+    (#rawKC == l-sub (buffer, 0, 2)) *
+    rawToUInt16(#rawKC, false, #keyCount) *
+    (0 <# #keyCount) *
+    Elements("Complete", buffer, 2, #keyCount, 2, ECKs, #ECKsLength) *
+    toUtf8PairMap(ECKs, #utf8ECKs) * FirstProj(ECKs, #ECKeys) * Duplicated({{ }}, #ECKeys) *
+    (2 + #ECKsLength == l-len buffer) *
+    (errorMessage == "decodeEncryptionContext: Duplicate encryption context key value.");
+
+(* General serialised encryption context *)
+@nopath
+pred RawEncryptionContext(definition:Str, +buffer:List, ECKs:List, errorMessage:Str) :
+  (definition == "Complete") * CRawEncryptionContext(buffer, ECKs) * (errorMessage == ""),
+  (definition == "Broken")   * BRawEncryptionContext(errorMessage, buffer, ECKs);
+
+
+(*****************************
+ *****************************
+ *******               *******
+ *******   Algorithm   *******
+ *******   Suites      *******
+ *******               *******
+ *****************************
+ *****************************)
+
+(* Correctly formed algorithm suite *)
+@nopath
+pred CAlgorithmSuite(+numId, stringId, ivLength, tagLength) :
+  (numId == 20) * (stringId == "ALG_AES128_GCM_IV12_TAG16") *
+    (ivLength == 12) * (tagLength == 128),
+  (numId == 70) * (stringId == "ALG_AES192_GCM_IV12_TAG16") * (ivLength == 12) *
+    (tagLength == 128);
+
+(* Broken algorithm suite *)
+@nopath
+pred BAlgorithmSuite(+numId, errorMessage) :
+  (! (numId == 20)) * (! (numId == 70)) *
+  (errorMessage == "Malformed Header: Unsupported algorithm suite.");
+
+(* The object that holds information about allowed algorithm suites *)
+@nopath
+pred AlgorithmSuiteIdentifierObject(o) :
+    JSObject(o) *
+    DataProp(o, "20",  "ALG_AES128_GCM_IV12_TAG16") * DataProp(o, "ALG_AES128_GCM_IV12_TAG16", 20) *
+    DataProp(o, "70",  "ALG_AES192_GCM_IV12_TAG16") * DataProp(o, "ALG_AES192_GCM_IV12_TAG16", 70) *
+    <Props>(o, -{ "20", "70", "ALG_AES128_GCM_IV12_TAG16", "ALG_AES192_GCM_IV12_TAG16" }-;);
+
+(*
+    The object representing a given algorithm suite.
+    TODO: This object is more complex than presented here.
+ *)
+@nopath
+pred AlgorithmSuiteObject(+aso: Obj, ivLength: Num, tagLength: Num) :
+    JSObject(aso) *
+    readOnlyProperty(aso, "ivLength",  ivLength) *
+    readOnlyProperty(aso, "tagLength", tagLength);
+
+(***************************
+ ***************************
+ *******             *******
+ *******   Message   *******
+ *******   Header    *******
+ *******             *******
+ ***************************
+ ***************************)
+
+(* The correct version and type *)
+@nopath
+pred CVersionAndType(version, type) :
+  (version == 1) * (type == 128);
+
+(* Broken version and type *)
+@nopath
+pred BVersionAndType(+version:Num, +type:Num, errorMessage:Str) :
+    (version == 65) * (type == 89) * (errorMessage == "Malformed Header: This blob may be base64 encoded."),
+    (! (version == 1) \/ ! (type == 128)) * (! (version == 65) \/ ! (type == 89)) * (errorMessage == "Malformed Header: Unsupported version and/or type.");
+
+ (********   Serialised   *******
+  ********   Header       *******)
+
+(* Serialised complete header *)
+@nopath
+nounfold pred CHeader(+rawHeaderData, part_one, version, type, suiteId,
+                      messageId, ECLength, part_two, ECKs, part_three, EDKs,
+                      contentType, headerIvLength, frameLength, headerLength,
+                      headerIv, headerAuthTag) :
+  (rawHeaderData == l+ (part_one, part_two)) *
+    ((l-len part_one) == 22) *
+    (part_one == l+ ({{ version, type }}, #rawSuiteId, messageId, #rawContextLength)) *
+    ((l-len #rawSuiteId) == 2) *
+    ((l-len messageId) == 16) *
+    ((l-len #rawContextLength) == 2) * CVersionAndType(version, type) *
+    rawToUInt16(#rawSuiteId, false, suiteId) *
+    CAlgorithmSuite(suiteId, #stringId, headerIvLength, #tagLength) *
+    rawToUInt16(#rawContextLength, false, ECLength) *
+    (part_two == l+ (#EC, part_three)) *
+    ((l-len #EC) == ECLength) *
+    CRawEncryptionContext(#EC, ECKs) *
+    (part_three == l+ (#edks, {{ contentType }}, {{ 0, 0, 0, 0 }}, {{ headerIvLength }}, #rawFrameLength, headerIv, headerAuthTag)) *
+    RawEncryptedDataKeys("Complete", rawHeaderData, (22 + ECLength), EDKs, #EDKsLength, _) *
+    (#EDKsLength == (l-len #edks)) * ((l-len #rawFrameLength) == 4) *
+    rawToUInt32(#rawFrameLength, false, frameLength) *
+    (headerLength == ((((((22 + ECLength) + #EDKsLength) + 1) + 4) + 1) + 4)) *
+    ((l-len headerIv) == headerIvLength) *
+    ((l-len headerAuthTag) == (#tagLength / 8)) *
+    (((headerLength + headerIvLength) + (#tagLength / 8)) <=# (l-len rawHeaderData));
+
+(* Serialised incomplete header *)
+@nopath
+nounfold pred IHeader(+rawHeaderData, part_one, version, type, suiteId, messageId, ECLength,
+                                      part_two, ECKs,
+                                      part_three, EDKs, contentType, headerIvLength, frameLength, headerLength, headerIv, headerAuthTag) :
+    (* Not enough data to read first part *)
+    (l-len rawHeaderData <# 22) *
+
+    (part_one == {{ }}) * (version == 0) * (type == 0) * (suiteId == 0) * (messageId == {{ }}) * (ECLength == 0) *
+    (part_two == {{ }}) * (ECKs == {{ }}) *
+    (part_three == {{ }}) * (EDKs == {{ }}) * (contentType == 0) * (headerIvLength == 0) *
+    (frameLength == 0) * (headerLength == 0) * (headerIv == {{ }}) * (headerAuthTag == {{ }}),
+
+    (* Not enough data to read encryption context *)
+    (22 <=# l-len rawHeaderData) *
+    (rawHeaderData == l+ (part_one, part_two)) *
+    (l-len part_one == 22) *
+    (part_one == l+ ({{ version, type }}, #rawSuiteId, messageId, #rawContextLength)) *
+    (l-len #rawSuiteId == 2) *
+    (l-len messageId == 16) *
+    (l-len #rawContextLength == 2) *
+    CVersionAndType(version, type) *
+    rawToUInt16(#rawSuiteId, false, suiteId) *
+    CAlgorithmSuite(suiteId, #stringId, headerIvLength, #tagLength) *
+    rawToUInt16(#rawContextLength, false, ECLength) *
+    (l-len rawHeaderData <# 22 + ECLength) *
+
+    (ECKs == {{ }}) *
+    (part_three == {{ }}) * (EDKs == {{ }}) * (contentType == 0) *
+    (frameLength == 0) * (headerLength == 0) * (headerIv == {{ }}) * (headerAuthTag == {{ }}),
+
+    (* Not enough data to read the encrypted data keys *)
+    (22 <=# l-len rawHeaderData) *
+    (rawHeaderData == l+ (part_one, part_two)) *
+    (l-len part_one == 22) *
+    (part_one == l+ ({{ version, type }}, #rawSuiteId, messageId, #rawContextLength)) *
+    (l-len #rawSuiteId == 2) *
+    (l-len messageId == 16) *
+    (l-len #rawContextLength == 2) *
+    CVersionAndType(version, type) *
+    rawToUInt16(#rawSuiteId, false, suiteId) *
+    CAlgorithmSuite(suiteId, #stringId, headerIvLength, #tagLength) *
+    rawToUInt16(#rawContextLength, false, ECLength) *
+    (22 + ECLength <=# l-len rawHeaderData) *
+
+    (part_two == l+ (#EC, part_three)) *
+    (l-len #EC == ECLength) *
+    CRawEncryptionContext(#EC, ECKs) *
+
+    RawEncryptedDataKeys("Incomplete", rawHeaderData, 22 + ECLength, EDKs, _, errorMessage) *
+    (contentType == 0) * (frameLength == 0) * (headerLength == 0) * (headerIv == {{ }}) * (headerAuthTag == {{ }}),
+
+    (* Not enough data to read the header IV and the authentication tag *)
+    (22 <=# l-len rawHeaderData) *
+    (rawHeaderData == l+ (part_one, part_two)) *
+    (l-len part_one == 22) *
+    (part_one == l+ ({{ version, type }}, #rawSuiteId, messageId, #rawContextLength)) *
+    (l-len #rawSuiteId == 2) *
+    (l-len messageId == 16) *
+    (l-len #rawContextLength == 2) *
+    CVersionAndType(version, type) *
+    rawToUInt16(#rawSuiteId, false, suiteId) *
+    CAlgorithmSuite(suiteId, #stringId, headerIvLength, #tagLength) *
+    rawToUInt16(#rawContextLength, false, ECLength) *
+    (22 + ECLength <=# l-len rawHeaderData) *
+
+    (part_two == l+ (#EC, part_three)) *
+    (l-len #EC == ECLength) *
+    CRawEncryptionContext(#EC, ECKs) *
+
+    (part_three == l+ (#edks, {{ contentType }}, {{ 0, 0, 0, 0 }}, {{ headerIvLength }}, #rawFrameLength, #rest)) *
+    RawEncryptedDataKeys("Complete", rawHeaderData, 22 + ECLength, EDKs, #EDKsLength, _) *
+    (#EDKsLength == l-len #edks) *
+    (l-len #rawFrameLength == 4) *
+    rawToUInt32(#rawFrameLength, false, frameLength) *
+    (headerLength == 22 + ECLength + #EDKsLength + 1 + 4 + 1 + 4) *
+    (l-len rawHeaderData <# headerLength + headerIvLength + (#tagLength / 8)) *
+
+    (headerIv == {{ }}) * (headerAuthTag == {{ }});
+
+(* Broken serialised header *)
+@nopath
+nounfold pred BHeader(+rawHeaderData, part_one, version, type, suiteId, messageId, ECLength,
+                                      part_two, ECKs,
+                                      part_three, EDKs, contentType, headerIvLength, frameLength, headerLength, headerIv, headerAuthTag, errorMessage) :
+    (* Incorrect version and/or type *)
+    (22 <=# l-len rawHeaderData) *
+    (rawHeaderData == l+ ({{ version, type }}, #rest)) *
+    BVersionAndType(version, type, errorMessage) *
+
+    (part_one == {{ }}) *
+    (suiteId == 0) * (messageId == {{ }}) * (ECLength == 0) *
+    (part_two == {{ }}) * (ECKs == {{ }}) *
+    (part_three == {{ }}) * (EDKs == {{ }}) * (contentType == 0) * (headerIvLength == 0) *
+    (frameLength == 0) * (headerLength == 0) * (headerIv == {{ }}) * (headerAuthTag == {{ }}),
+
+    (* Unsupported algorithm suite *)
+    (22 <=# l-len rawHeaderData) *
+    (rawHeaderData == l+ ({{ version, type }}, #rawSuiteId, #rest)) *
+    (l-len #rawSuiteId == 2) *
+    CVersionAndType(version, type) *
+    rawToUInt16(#rawSuiteId, false, suiteId) *
+    BAlgorithmSuite(suiteId, errorMessage) *
+
+    (part_one == {{ }}) * (messageId == {{ }}) * (ECLength == 0) *
+    (part_two == {{ }}) * (ECKs == {{ }}) *
+    (part_three == {{ }}) * (EDKs == {{ }}) * (contentType == 0) * (headerIvLength == 0) *
+    (frameLength == 0) * (headerLength == 0) * (headerIv == {{ }}) * (headerAuthTag == {{ }}),
+
+    (* Broken encryption context *)
+    (22 <=# l-len rawHeaderData) *
+    (rawHeaderData == l+ (part_one, part_two)) *
+    (l-len part_one == 22) *
+    (part_one == l+ ({{ version, type }}, #rawSuiteId, messageId, #rawContextLength)) *
+    (l-len #rawSuiteId == 2) *
+    (l-len messageId == 16) *
+    (l-len #rawContextLength == 2) *
+    CVersionAndType(version, type) *
+    rawToUInt16(#rawSuiteId, false, suiteId) *
+    CAlgorithmSuite(suiteId, #stringId, headerIvLength, #tagLength) *
+    rawToUInt16(#rawContextLength, false, ECLength) *
+    (22 + ECLength <=# l-len rawHeaderData) *
+
+    (part_two == l+ (#EC, part_three)) *
+    (l-len #EC == ECLength) *
+    BRawEncryptionContext(errorMessage, #EC, ECKs) *
+
+    (EDKs == {{ }}) * (contentType == 0) * (frameLength == 0) *
+    (headerLength == 0) * (headerIv == {{ }}) * (headerAuthTag == {{ }}),
+
+    (* Broken encrypted data keys *)
+    (22 <=# l-len rawHeaderData) *
+    (rawHeaderData == l+ (part_one, part_two)) *
+    (l-len part_one == 22) *
+    (part_one == l+ ({{ version, type }}, #rawSuiteId, messageId, #rawContextLength)) *
+    (l-len #rawSuiteId == 2) *
+    (l-len messageId == 16) *
+    (l-len #rawContextLength == 2) *
+    CVersionAndType(version, type) *
+    rawToUInt16(#rawSuiteId, false, suiteId) *
+    CAlgorithmSuite(suiteId, #stringId, headerIvLength, #tagLength) *
+    rawToUInt16(#rawContextLength, false, ECLength) *
+    (22 + ECLength <=# l-len rawHeaderData) *
+
+    (part_two == l+ (#EC, part_three)) *
+    (l-len #EC == ECLength) *
+    CRawEncryptionContext(#EC, ECKs) *
+    RawEncryptedDataKeys("Broken", rawHeaderData, 22 + ECLength, _, _, errorMessage) *
+
+    (EDKs == {{ }}) * (contentType == 0) * (frameLength == 0) *
+    (headerLength == 0) * (headerIv == {{ }}) * (headerAuthTag == {{ }}),
+
+    (* Incorrect reserved bytes *)
+    (22 <=# l-len rawHeaderData) *
+    (rawHeaderData == l+ (part_one, part_two)) *
+    (l-len part_one == 22) *
+    (part_one == l+ ({{ version, type }}, #rawSuiteId, messageId, #rawContextLength)) *
+    (l-len #rawSuiteId == 2) *
+    (l-len messageId == 16) *
+    (l-len #rawContextLength == 2) *
+    CVersionAndType(version, type) *
+    rawToUInt16(#rawSuiteId, false, suiteId) *
+    CAlgorithmSuite(suiteId, #stringId, headerIvLength, #tagLength) *
+    rawToUInt16(#rawContextLength, false, ECLength) *
+    (22 + ECLength <=# l-len rawHeaderData) *
+
+    (part_two == l+ (#EC, part_three)) *
+    (l-len #EC == ECLength) *
+    CRawEncryptionContext(#EC, ECKs) *
+    (part_three == l+ (#edks, {{ contentType }}, #rawReservedBytes, #rest)) *
+    RawEncryptedDataKeys("Complete", rawHeaderData, 22 + ECLength, EDKs, #EDKsLength, _) *
+    (#EDKsLength == l-len #edks) *
+    (l-len #rawReservedBytes == 4) *
+    rawToUInt32(#rawReservedBytes, false, #reservedBytes) *
+    (! (#reservedBytes == 0)) *
+    (headerLength == 22 + ECLength + #EDKsLength + 1 + 4 + 1 + 4) *
+    (headerLength + headerIvLength + (#tagLength / 8) <=# l-len rawHeaderData) *
+
+    (errorMessage == "Malformed Header: Reserved bytes not equal to zero.") *
+    (frameLength == 0) * (headerIv == {{ }}) * (headerAuthTag == {{ }}),
+
+    (* IV length mismatch *)
+    (22 <=# l-len rawHeaderData) *
+    (rawHeaderData == l+ (part_one, part_two)) *
+    (l-len part_one == 22) *
+    (part_one == l+ ({{ version, type }}, #rawSuiteId, messageId, #rawContextLength)) *
+    (l-len #rawSuiteId == 2) *
+    (l-len messageId == 16) *
+    (l-len #rawContextLength == 2) *
+    CVersionAndType(version, type) *
+    rawToUInt16(#rawSuiteId, false, suiteId) *
+    CAlgorithmSuite(suiteId, #stringId, #ivLength, #tagLength) *
+    rawToUInt16(#rawContextLength, false, ECLength) *
+    (22 + ECLength <=# l-len rawHeaderData) *
+
+    (part_two == l+ (#EC, part_three)) *
+    (l-len #EC == ECLength) *
+    CRawEncryptionContext(#EC, ECKs) *
+    (part_three == l+ (#edks, {{ contentType }}, {{ 0, 0, 0, 0 }}, {{ headerIvLength }}, #rest)) *
+    RawEncryptedDataKeys("Complete", rawHeaderData, 22 + ECLength, EDKs, #EDKsLength, _) *
+    (#EDKsLength == l-len #edks) *
+    (headerLength == 22 + ECLength + #EDKsLength + 1 + 4 + 1 + 4) *
+    (headerLength + #ivLength + (#tagLength / 8) <=# l-len rawHeaderData) *
+    (! (headerIvLength == #ivLength)) *
+
+    (errorMessage == "Malformed Header: Mismatch between expected and obtained IV length.") *
+    (frameLength == 0) * (headerIv == {{ }}) * (headerAuthTag == {{ }});
+
+(* General serialised header *)
+@nopath
+nounfold pred Header(definition, +rawHeaderData, part_one, version, type, suiteId, messageId, ECLength, part_two, ECKs, part_three, EDKs, contentType, headerIvLength, frameLength, headerLength, headerIv, headerAuthTag, errorMessage) :
+    (* Complete header *)
+    (definition == "Complete") *
+    CHeader(rawHeaderData, part_one, version, type, suiteId, messageId, ECLength, part_two, ECKs, part_three, EDKs, contentType, headerIvLength, frameLength, headerLength, headerIv, headerAuthTag) *
+    (errorMessage == ""),
+
+    (* Incomplete header *)
+    (definition == "Incomplete") *
+    IHeader(rawHeaderData, part_one, version, type, suiteId, messageId, ECLength, part_two, ECKs, part_three, EDKs, contentType, headerIvLength, frameLength, headerLength, headerIv, headerAuthTag) *
+    (errorMessage == ""),
+
+    (* Broken header *)
+    (definition == "Broken") *
+    BHeader(rawHeaderData, part_one, version, type, suiteId, messageId, ECLength, part_two, ECKs, part_three, EDKs, contentType, headerIvLength, frameLength, headerLength, headerIv, headerAuthTag, errorMessage);
+
+(*************************
+ *************************
+ *******           *******
+ *******   OTHER   *******
+ *******           *******
+ *************************
+ *************************)
+
+lemma IntegerLtPlusOneLe(a, b) [[ (#a <# #b) ]] [[ (#a + 1 <=# #b) ]]

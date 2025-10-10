@@ -14,6 +14,7 @@ baseState() {
     cd "$dir/../../Gillian"
     eval $(opam env)
     dune build
+    dune install
 }
 
 
@@ -54,7 +55,7 @@ phase() {
 
         echo -n "- $(basename $i)"
         echo "Running file $i" >> "$4"
-        dune exec --no-build -- $3 --runtime "$runtime" -l disabled -a "$i" >> "$4" 2>&1
+        $3 --runtime "$runtime" -l disabled -a "$i" >> "$4" 2>&1
         echo " -- $?"
     done
 }

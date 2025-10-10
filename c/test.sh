@@ -14,6 +14,7 @@ baseState() {
     cd "$dir/../../Gillian"
     eval $(opam env)
     dune build
+    dune install
 }
 
 _transformerState() {
@@ -22,6 +23,7 @@ _transformerState() {
     eval $(opam env)
     sed -i '' "s/module Prebuilt = .*/module Prebuilt = $1/" bin/transformers.ml
     dune build
+    dune install
 }
 
 transformerState() {
@@ -53,7 +55,7 @@ phase() {
 
         echo -n "- $(basename $i)"
         echo "Running file $i" >> "$4"
-        dune exec --no-build -- $3 -a --runtime "$runtime" -l disabled "$i" >> "$4" 2>&1
+        $3 -a --runtime "$runtime" -l disabled "$i" >> "$4" 2>&1
         echo " -- $?"
     done
 }
@@ -67,7 +69,7 @@ phaseAmazon() {
 
     echo -n "- Simpler tests"
     echo "Running file proc/aws/simple" >> "$2"
-    dune exec --no-build -- $1 verify \
+    $1 verify \
         $awsDir/amazon/header.c $awsDir/amazon/edk.c $awsDir/amazon/array_list.c $awsDir/amazon/ec.c $awsDir/amazon/byte_buf.c \
         $awsDir/amazon/hash_table.c $awsDir/amazon/string.c $awsDir/amazon/allocator.c $awsDir/amazon/error.c $awsDir/amazon/base.c \
         --runtime "$runtime" -I $awsDir/amazon/includes \
@@ -76,35 +78,35 @@ phaseAmazon() {
         --proc aws_byte_cursor_read_and_fill_buffer --proc aws_byte_cursor_read_be32 --proc aws_byte_cursor_read_be16 \
         --proc aws_cryptosdk_algorithm_is_known --proc aws_string_destroy --proc aws_cryptosdk_hdr_clear \
         --proc aws_string_new_from_array --proc aws_byte_cursor_advance --proc is_known_type \
-        --fstruct-passing --no-lemma-proof -l disabled 2> /dev/null
+        --fstruct-passing --no-lemma-proof -l disabled >> "$2" 2>&1
     echo " -- $?"
 
     echo -n "- aws_cryptosdk_hdr_parse"
     echo "Running file proc/aws/aws_cryptosdk_hdr_parse" >> "$2"
-    dune exec --no-build -- $1 verify \
+    $1 verify \
         $awsDir/amazon/header.c $awsDir/amazon/edk.c $awsDir/amazon/array_list.c $awsDir/amazon/ec.c $awsDir/amazon/byte_buf.c \
         $awsDir/amazon/hash_table.c $awsDir/amazon/string.c $awsDir/amazon/allocator.c $awsDir/amazon/error.c $awsDir/amazon/base.c \
         --runtime "$runtime" -I $awsDir/amazon/includes --proc aws_cryptosdk_hdr_parse \
-        --fstruct-passing --no-lemma-proof -l disabled 2> /dev/null
+        --fstruct-passing --no-lemma-proof -l disabled >> "$2" 2>&1
     echo " -- $?"
 
     echo -n "- aws_cryptosdk_enc_ctx_deserialize"
     echo "Running file proc/aws/aws_cryptosdk_enc_ctx_deserialize" >> "$2"
-    dune exec --no-build -- $1 verify \
+    $1 verify \
         $awsDir/amazon/header.c $awsDir/amazon/edk.c $awsDir/amazon/array_list.c $awsDir/amazon/ec.c $awsDir/amazon/byte_buf.c \
         $awsDir/amazon/hash_table.c $awsDir/amazon/string.c $awsDir/amazon/allocator.c $awsDir/amazon/error.c $awsDir/amazon/base.c \
         --runtime "$runtime" -I $awsDir/amazon/includes --proc aws_cryptosdk_enc_ctx_deserialize \
-        --fstruct-passing --no-lemma-proof -l disabled 2> /dev/null
+        --fstruct-passing --no-lemma-proof -l disabled >> "$2" 2>&1
     echo " -- $?"
 
     echo -n "- parse_edk"
     echo "Running file proc/aws/parse_edk" >> "$2"
     # Z3 is a bit flaky and this test fails by itself, but passes if verified with anything else (eg. aws_byte_buf_init)
-    dune exec --no-build -- $1 verify \
+    $1 verify \
         $awsDir/amazon/header.c $awsDir/amazon/edk.c $awsDir/amazon/array_list.c $awsDir/amazon/ec.c $awsDir/amazon/byte_buf.c \
         $awsDir/amazon/hash_table.c $awsDir/amazon/string.c $awsDir/amazon/allocator.c $awsDir/amazon/error.c $awsDir/amazon/base.c \
         --runtime $awsDir/runtime -I $awsDir/amazon/includes --proc aws_byte_buf_init --proc parse_edk \
-        --fstruct-passing --no-lemma-proof -l disabled 2> /dev/null
+        --fstruct-passing --no-lemma-proof -l disabled >> "$2" 2>&1
     echo " -- $?"
 }
 
@@ -122,8 +124,8 @@ test() {
         # phase "Verification" verification "$1 verify" "$logfile"
         # phase "Biabduction" biabduction "$1 act --specs-to-stdout" "$logfile"
         # phase "WPST" wpst "$1 wpst" "$logfile"
-        # phase "Collections-C" collections-c "$1 wpst" "$logfile"
-        phaseAmazon $1 "$logfile"
+        phase "Collections-C" collections-c "$1 wpst" "$logfile"
+        # phaseAmazon $1 "$logfile"
     done
 
     printf "\n\n"
@@ -140,7 +142,7 @@ if [ "$1" == "b" ] || [ "$1" == "a" ]; then
 fi
 if [ "$1" == "t" ] || [ "$1" == "T" ] || [ "$1" == "a" ]; then
     baseState
-    test t_c tr
+    test transformers tr
 fi
 if [ "$1" == "aloc" ] || [ "$1" == "T" ] || [ "$1" == "a" ]; then
     transformerALocState
