@@ -14,8 +14,8 @@ hyperfine --warmup 1 $@ \
   --setup "cd $GILLIAN && eval \$(opam env) && dune build" \
   --prepare "cd $GILLIAN && dune install" \
   --export-csv "$HERE/results.csv" \
-  -n "Monolithic" "$HERE/run_b.sh" \
-  -n "Combinators" "$HERE/run_t.sh" \
-  -n "Combinators ALoc" "$HERE/run_t_a.sh" \
-  -n "Combinators Split" "$HERE/run_t_s.sh" \
-  -n "Combinators ALoc+Split" "$HERE/run_t_as.sh" \
+  -n "Monolithic" "$HERE/run_b.sh > $HERE/log_b.log" \
+  -n "Combinators" "$HERE/run_t.sh > $HERE/log_t.log" \
+  -n "Combinators ALoc" "$HERE/run_t_a.sh > $HERE/log_t_a.log" \
+  -n "Combinators Split" "$HERE/run_t_s.sh > $HERE/log_t_s.log" \
+  -n "Combinators ALoc+Split" "$HERE/run_t_as.sh > $HERE/log_t_as.log" \
